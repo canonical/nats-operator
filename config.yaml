@@ -1,0 +1,41 @@
+options:
+    client-port:
+        type: int
+        default: 4222
+        description: A port NATS listens on for incoming client connections.
+    cluster-port:
+        type: int
+        default: 4248
+        description: A port NATS listens on for incoming cluster connections.
+    tls-key:
+        type: string
+        default: ""
+        description: A TLS server key to be used by NATS.
+    tls-cert:
+        type: string
+        default: ""
+        description: A TLS server certificate to be used by NATS.
+    tls-ca-cert:
+        type: string
+        default: ""
+        description: |
+            A CA certificate to be used for verification of TLS certificates of NATS cluster peers.
+            Optional if TLS certificates are signed by a certificate authority that the core snap trusts.
+    verify-tls-clients:
+        type: boolean
+        default: true
+        description: Enable or disable mandatory client TLS certificate verification.
+    map-tls-clients:
+        type: boolean
+        default: false
+        description: |
+            Enable or disable usage of values in client certificates for authentication purposes (used in
+            conjunction with verify-tls-clients only.
+    debug:
+        type: boolean
+        default: false
+        description: Enable nats-server debug logging.
+    trace:
+        type: boolean
+        default: false
+        description: Enable tracing of raw protocol messages for nats-server.

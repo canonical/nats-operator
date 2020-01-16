@@ -1,0 +1,26 @@
+listen: {{client_bind_address}}:{{client_port}}
+authorization: {
+  token: "{{auth_token}}"
+}
+cluster {
+  listen: {{cluster_bind_address}}:{{cluster_port}}
+  routes = [
+    {%- for peer_address in peer_addresses %}
+    nats-route://{{peer_address}}:{{cluster_port}}
+    {%- endfor %}
+  ]
+}
+{%- if use_tls %}
+tls {
+{%- if tls_ca_cert_path %}
+  ca_file: {{tls_ca_cert_path}}
+{%- endif %}
+  cert_file: {{tls_cert_path}}
+  key_file: {{tls_key_path}}
+  timeout: 2
+  verify: {{verify_tls_clients}}
+  verify_and_map: {{map_tls_clients}}
+}
+{%- endif %}
+debug: {{debug}}
+trace: {{trace}}
