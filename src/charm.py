@@ -73,9 +73,9 @@ class NatsCharm(CharmBase):
         cmd = ['snap', 'install']
         # Install the core snap from a resource if provided. Alternatively, snapd
         # will attempt to download it automatically.
-        if core_res is not None:
+        if core_res is not None and Path(core_res).stat().st_size:
             subprocess.check_call(cmd + ['--dangerous', core_res])
-        if nats_res is not None:
+        if nats_res is not None and Path(nats_res).stat().st_size:
             nats_cmd = cmd + ['--dangerous', nats_res]
         subprocess.check_call(nats_cmd)
         self.SERVER_PATH.mkdir(exist_ok=True, mode=0o0700)
