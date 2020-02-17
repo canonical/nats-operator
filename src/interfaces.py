@@ -20,8 +20,8 @@ class NatsCluster(Object):
         addresses = []
         relation = self.relation
         if relation:
-            for u in self.relation.units:
-                addresses.append(self.relation.data[u]['ingress-address'])
+            for u in relation.units:
+                addresses.append(relation.data[u]['ingress-address'])
         return addresses
 
     @property
