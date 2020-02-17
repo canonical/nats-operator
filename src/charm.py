@@ -57,11 +57,8 @@ class NatsCharm(CharmBase):
 
         self.cluster = NatsCluster(self, 'cluster')
         self.client = NatsClient(self, 'client')
-        self.state.set_default(is_started=False)
-        self.state.set_default(auth_token=self.get_auth_token(self.AUTH_TOKEN_LENGTH))
-        self.state.set_default(use_tls=None)
-        self.state.set_default(use_tls_ca=None)
-        self.state.set_default(nats_config_hash=None)
+        self.state.set_default(is_started=False, auth_token=self.get_auth_token(self.AUTH_TOKEN_LENGTH),
+                               use_tls=None, use_tls_ca=None, nats_config_hash=None)
 
     def on_install(self, event):
         try:
@@ -147,7 +144,7 @@ class NatsCharm(CharmBase):
                 subprocess.check_call(['systemctl', 'restart', f'{self.NATS_SERVICE}'])
 
     def get_auth_token(self, length=None):
-        """Generate a random pasword."""
+        '''Generate a random auth token.'''
         if not isinstance(length, int):
             raise RuntimeError('invalid length provided for a token')
         alphanumeric_chars = string.ascii_letters + string.digits
