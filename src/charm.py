@@ -56,7 +56,7 @@ class NatsCharm(CharmBase):
             self.framework.observe(event, self)
 
         self.cluster = NatsCluster(self, 'cluster')
-        self.client = NatsClient(self, 'client')
+        self.client = NatsClient(self, 'client', self.model.config['listen-on-all-addresses'])
         self.state.set_default(is_started=False, auth_token=self.get_auth_token(self.AUTH_TOKEN_LENGTH),
                                use_tls=None, use_tls_ca=None, nats_config_hash=None)
 
@@ -152,6 +152,9 @@ class NatsCharm(CharmBase):
         return ''.join([rng.choice(alphanumeric_chars) for _ in range(length)])
 
     def on_start(self, event):
+        if not self.cluster.is_joined:
+            event.defer()
+            return
         subprocess.check_call(['systemctl', 'start', f'{self.NATS_SERVICE}'])
         self.state.is_started = True
         self.on.nats_started.emit()
@@ -161,6 +164,9 @@ class NatsCharm(CharmBase):
         self.reconfigure_nats()
 
     def on_config_changed(self, event):
+        if not self.cluster.is_joined:
+            event.defer()
+            return
         self.reconfigure_nats()
 
     def on_upgrade_charm(self, event):

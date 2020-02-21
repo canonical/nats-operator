@@ -7,6 +7,14 @@ options:
         type: int
         default: 4248
         description: A port NATS listens on for incoming cluster connections.
+    listen-on-all-addresses:
+        type: boolean
+        default: false
+        description: |
+            Whether to use 0.0.0.0 for the client listening socket or not (all IPv4 and IPv6 addresses).
+            NATS does not support multiple "listen" directives and the charm will error out if there are
+            cross-model relations that result in multiple *different* bind-addresses available for relations of the
+            client relation endpoint.
     tls-key:
         type: string
         default: ""

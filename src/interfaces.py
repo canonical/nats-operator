@@ -1,3 +1,5 @@
+import ipaddress
+
 from ops.framework import Object
 
 
@@ -5,15 +7,15 @@ class NatsCluster(Object):
 
     def __init__(self, charm, relation_name):
         super().__init__(charm, relation_name)
-        self.relation_name = relation_name
+        self._relation_name = relation_name
 
     @property
     def is_joined(self):
-        return self.framework.model.get_relation(self.relation_name) is not None
+        return self.framework.model.get_relation(self._relation_name) is not None
 
     @property
     def relation(self):
-        return self.framework.model.get_relation(self.relation_name)
+        return self.framework.model.get_relation(self._relation_name)
 
     @property
     def peer_addresses(self):
@@ -26,15 +28,28 @@ class NatsCluster(Object):
 
     @property
     def bind_address(self):
-        return self.model.get_binding(self.relation_name).network.bind_address
+        return self.model.get_binding(self.relation).network.bind_address
 
 
 class NatsClient(Object):
 
-    def __init__(self, charm, relation_name):
+    def __init__(self, charm, relation_name, listen_on_all_addresses):
         super().__init__(charm, relation_name)
-        self.relation_name = relation_name
+        self._relation_name = relation_name
+        if listen_on_all_addresses:
+            # This will create a listening socket for all IPv4 and IPv6 addresses.
+            self._listen_address = ipaddress.ip_address('0.0.0.0')
 
     @property
     def bind_address(self):
-        return self.model.get_binding(self.relation_name).network.bind_address
+        if self._listen_address is None:
+            addresses = []
+            for relation in self.model.relations[self._relation_name]:
+                address = self.model.get_binding(relation).network.bind_address
+                if address not in addresses:
+                    addresses.append(address)
+            if len(addresses) > 1:
+                raise Exception('Multiple potential listen addresses detected: NATS does not support that')
+            else:
+                self._listen_address = addresses[0]
+        return self._listen_address

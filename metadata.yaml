@@ -16,6 +16,8 @@ provides:
 peers:
     cluster:
         interface: nats-cluster
+    test:
+        interface: test
 resources:
   core:
     type: file
