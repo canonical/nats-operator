@@ -54,9 +54,9 @@ class NatsCharm(CharmBase):
                       self.on.config_changed,
                       self.on.cluster_relation_changed):
             self.framework.observe(event, self)
-
-        self.cluster = NatsCluster(self, 'cluster')
-        self.client = NatsClient(self, 'client', self.model.config['listen-on-all-addresses'])
+        listen_on_all_addresses = self.model.config['listen-on-all-addresses']
+        self.cluster = NatsCluster(self, 'cluster', listen_on_all_addresses)
+        self.client = NatsClient(self, 'client', listen_on_all_addresses)
         self.state.set_default(is_started=False, auth_token=self.get_auth_token(self.AUTH_TOKEN_LENGTH),
                                use_tls=None, use_tls_ca=None, nats_config_hash=None)
 
@@ -114,8 +114,8 @@ class NatsCharm(CharmBase):
         ctxt = {
             'client_port': self.model.config['client-port'],
             'cluster_port': self.model.config['cluster-port'],
-            'cluster_bind_address': self.cluster.bind_address,
-            'client_bind_address': self.client.bind_address,
+            'cluster_listen_address': self.cluster.listen_address,
+            'client_listen_address': self.client.listen_address,
             'auth_token': self.state.auth_token,
             'peer_addresses': self.cluster.peer_addresses,
             'debug': self.model.config['debug'],
@@ -152,7 +152,7 @@ class NatsCharm(CharmBase):
         return ''.join([rng.choice(alphanumeric_chars) for _ in range(length)])
 
     def on_start(self, event):
-        if not self.cluster.is_joined:
+        if not self.cluster.is_joined and not self.model.config['listen-on-all-addresses']:
             event.defer()
             return
         subprocess.check_call(['systemctl', 'start', f'{self.NATS_SERVICE}'])
@@ -164,7 +164,7 @@ class NatsCharm(CharmBase):
         self.reconfigure_nats()
 
     def on_config_changed(self, event):
-        if not self.cluster.is_joined:
+        if not self.cluster.is_joined and not self.model.config['listen-on-all-addresses']:
             event.defer()
             return
         self.reconfigure_nats()

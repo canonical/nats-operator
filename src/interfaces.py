@@ -5,9 +5,14 @@ from ops.framework import Object
 
 class NatsCluster(Object):
 
-    def __init__(self, charm, relation_name):
+    def __init__(self, charm, relation_name, listen_on_all_addresses):
         super().__init__(charm, relation_name)
         self._relation_name = relation_name
+        if listen_on_all_addresses:
+            # This will create a listening socket for all IPv4 and IPv6 addresses.
+            self._listen_address = ipaddress.ip_address('0.0.0.0')
+        else:
+            self._listen_address = None
 
     @property
     def is_joined(self):
@@ -27,8 +32,10 @@ class NatsCluster(Object):
         return addresses
 
     @property
-    def bind_address(self):
-        return self.model.get_binding(self.relation).network.bind_address
+    def listen_address(self):
+        if self._listen_address is None:
+            self._listen_address = self.model.get_binding(self.relation).network.bind_address
+        return self._listen_address
 
 
 class NatsClient(Object):
@@ -39,9 +46,11 @@ class NatsClient(Object):
         if listen_on_all_addresses:
             # This will create a listening socket for all IPv4 and IPv6 addresses.
             self._listen_address = ipaddress.ip_address('0.0.0.0')
+        else:
+            self._listen_address = None
 
     @property
-    def bind_address(self):
+    def listen_address(self):
         if self._listen_address is None:
             addresses = []
             for relation in self.model.relations[self._relation_name]:

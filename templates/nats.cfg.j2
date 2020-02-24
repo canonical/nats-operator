@@ -1,9 +1,9 @@
-listen: {{client_bind_address}}:{{client_port}}
+listen: {{client_listen_address}}:{{client_port}}
 authorization: {
   token: "{{auth_token}}"
 }
 cluster {
-  listen: {{cluster_bind_address}}:{{cluster_port}}
+  listen: {{cluster_listen_address}}:{{cluster_port}}
   routes = [
     {%- for peer_address in peer_addresses %}
     nats-route://{{peer_address}}:{{cluster_port}}
