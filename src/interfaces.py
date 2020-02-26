@@ -47,7 +47,7 @@ class NatsClient(Object):
             # This will create a listening socket for all IPv4 and IPv6 addresses.
             self._listen_address = ipaddress.ip_address('0.0.0.0')
         else:
-            self._listen_address = None
+            self._listen_address = ipaddress.ip_address('127.0.0.1')
 
     @property
     def listen_address(self):
@@ -59,6 +59,8 @@ class NatsClient(Object):
                     addresses.append(address)
             if len(addresses) > 1:
                 raise Exception('Multiple potential listen addresses detected: NATS does not support that')
+            elif len(addresses) == 0:
+                self._listen_address = None
             else:
                 self._listen_address = addresses[0]
         return self._listen_address
