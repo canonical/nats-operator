@@ -52,11 +52,12 @@ class NatsCharm(CharmBase):
                       self.on.start,
                       self.on.upgrade_charm,
                       self.on.config_changed,
-                      self.on.cluster_relation_changed):
+                      self.on.cluster_relation_changed,
+                      self.on.client_relation_joined):
             self.framework.observe(event, self)
         listen_on_all_addresses = self.model.config['listen-on-all-addresses']
         self.cluster = NatsCluster(self, 'cluster', listen_on_all_addresses)
-        self.client = NatsClient(self, 'client', listen_on_all_addresses)
+        self.client = NatsClient(self, 'client', listen_on_all_addresses, self.model.config['client-port'])
         self.state.set_default(is_started=False, auth_token=self.get_auth_token(self.AUTH_TOKEN_LENGTH),
                                use_tls=None, use_tls_ca=None, nats_config_hash=None)
 
@@ -108,6 +109,7 @@ class NatsCharm(CharmBase):
             # A CA cert is optional because NATS may rely on system-trusted (core snap) CA certs.
             if self.state.use_tls_ca:
                 self.TLS_CA_CERT_PATH.write_text(tls_ca_cert)
+                self.client.set_tls_ca(tls_ca_cert)
 
     def reconfigure_nats(self):
         self.handle_tls_config()
@@ -142,6 +144,7 @@ class NatsCharm(CharmBase):
             self.NATS_SERVER_CONFIG_PATH.write_text(rendered_content)
             if self.state.is_started:
                 subprocess.check_call(['systemctl', 'restart', f'{self.NATS_SERVICE}'])
+        self.client.expose_nats()
 
     def get_auth_token(self, length=None):
         '''Generate a random auth token.'''
@@ -161,6 +164,9 @@ class NatsCharm(CharmBase):
         self.model.unit.status = ActiveStatus()
 
     def on_cluster_relation_changed(self, event):
+        self.reconfigure_nats()
+
+    def on_client_relation_joined(self, event):
         self.reconfigure_nats()
 
     def on_config_changed(self, event):
