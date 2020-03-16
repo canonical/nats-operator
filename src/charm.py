@@ -4,6 +4,7 @@ import subprocess
 import string
 import random
 import sys
+import logging
 sys.path.append('lib') # noqa
 
 from ops.charm import CharmBase, CharmEvents
@@ -21,6 +22,9 @@ from pathlib import Path
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.x509 import load_pem_x509_certificate
+
+
+logger = logging.getLogger(__name__)
 
 
 class NatsStartedEvent(EventBase):
@@ -79,6 +83,7 @@ class NatsCharm(CharmBase):
         if nats_res is not None and Path(nats_res).stat().st_size:
             nats_cmd = cmd + ['--dangerous', nats_res]
         subprocess.check_call(nats_cmd)
+        subprocess.check_call(['snap', 'stop', 'nats', '--disable'])
         self.SERVER_PATH.mkdir(exist_ok=True, mode=0o0700)
 
     def handle_tls_config(self):
@@ -112,6 +117,7 @@ class NatsCharm(CharmBase):
                 self.client.set_tls_ca(tls_ca_cert)
 
     def reconfigure_nats(self):
+        logger.info('Reconfiguring NATS')
         self.handle_tls_config()
         ctxt = {
             'client_port': self.model.config['client-port'],
@@ -140,10 +146,12 @@ class NatsCharm(CharmBase):
         content_hash = hash(rendered_content)
         old_hash = self.state.nats_config_hash
         if old_hash != content_hash:
+            logging.info(f'Config has changed - re-rendering a template to {self.NATS_SERVER_CONFIG_PATH}')
+            logger.info('')
             self.state.rendered_content_hash = content_hash
             self.NATS_SERVER_CONFIG_PATH.write_text(rendered_content)
             if self.state.is_started:
-                subprocess.check_call(['systemctl', 'restart', f'{self.NATS_SERVICE}'])
+                subprocess.check_call(['systemctl', 'restart', self.NATS_SERVICE])
         self.client.expose_nats()
 
     def get_auth_token(self, length=None):
@@ -155,10 +163,7 @@ class NatsCharm(CharmBase):
         return ''.join([rng.choice(alphanumeric_chars) for _ in range(length)])
 
     def on_start(self, event):
-        if not self.cluster.is_joined and not self.model.config['listen-on-all-addresses']:
-            event.defer()
-            return
-        subprocess.check_call(['systemctl', 'start', f'{self.NATS_SERVICE}'])
+        subprocess.check_call(['snap', 'start', 'nats', '--enable'])
         self.state.is_started = True
         self.on.nats_started.emit()
         self.model.unit.status = ActiveStatus()
@@ -170,9 +175,6 @@ class NatsCharm(CharmBase):
         self.reconfigure_nats()
 
     def on_config_changed(self, event):
-        if not self.cluster.is_joined and not self.model.config['listen-on-all-addresses']:
-            event.defer()
-            return
         self.reconfigure_nats()
 
     def on_upgrade_charm(self, event):
