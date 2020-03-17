@@ -71,9 +71,9 @@ class NatsClient(Object):
     def set_tls_ca(self, tls_ca):
         self._tls_ca = tls_ca
 
-    def expose_nats(self):
-        rel = self.model.get_relation(self._relation_name)
-        if rel is not None:
+    def expose_nats(self, auth_token=None):
+        relations = self.model.relations[self._relation_name]
+        for rel in relations:
             if self._tls_ca is not None:
                 url = f'tls://{self.listen_address}:{self._client_port}'
             else:
@@ -81,3 +81,5 @@ class NatsClient(Object):
             rel.data[self.model.unit]['url'] = url
             if self.model.unit.is_leader() and self._tls_ca is not None:
                 rel.data[self.model.app]['ca_cert'] = self._tls_ca
+                if auth_token is not None:
+                    rel.data[self.model.app]['auth_token'] = auth_token

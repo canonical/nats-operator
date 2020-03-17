@@ -156,7 +156,7 @@ class NatsCharm(CharmBase):
             self.NATS_SERVER_CONFIG_PATH.write_text(rendered_content)
             if self.state.is_started:
                 subprocess.check_call(['systemctl', 'restart', self.NATS_SERVICE])
-        self.client.expose_nats()
+        self.client.expose_nats(auth_token=self.state.auth_token)
 
     def get_auth_token(self, length=None):
         '''Generate a random auth token.'''
