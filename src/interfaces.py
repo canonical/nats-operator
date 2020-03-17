@@ -74,12 +74,13 @@ class NatsClient(Object):
     def expose_nats(self, auth_token=None):
         relations = self.model.relations[self._relation_name]
         for rel in relations:
+            address = self.listen_address
+            if auth_token is not None:
+                address = f'{auth_token}@{self.listen_address}'
             if self._tls_ca is not None:
-                url = f'tls://{self.listen_address}:{self._client_port}'
+                url = f'tls://{address}:{self._client_port}'
             else:
-                url = f'nats://{self.listen_address}:{self._client_port}'
+                url = f'nats://{address}:{self._client_port}'
             rel.data[self.model.unit]['url'] = url
             if self.model.unit.is_leader() and self._tls_ca is not None:
                 rel.data[self.model.app]['ca_cert'] = self._tls_ca
-                if auth_token is not None:
-                    rel.data[self.model.app]['auth_token'] = auth_token
