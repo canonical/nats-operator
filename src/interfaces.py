@@ -34,7 +34,7 @@ class NatsCluster(Object):
     @property
     def listen_address(self):
         if self._listen_address is None:
-            self._listen_address = self.model.get_binding(self.relation).network.bind_address
+            self._listen_address = self.model.get_binding(self._relation_name).network.bind_address
         return self._listen_address
 
 
@@ -55,17 +55,17 @@ class NatsClient(Object):
     @property
     def listen_address(self):
         if self._listen_address is None:
-            addresses = []
+            addresses = set()
             for relation in self.model.relations[self._relation_name]:
                 address = self.model.get_binding(relation).network.bind_address
-                if address not in addresses:
-                    addresses.append(address)
+                addresses.add(address)
             if len(addresses) > 1:
                 raise Exception('Multiple potential listen addresses detected: NATS does not support that')
             elif addresses == 1:
-                self._listen_address = addresses[0]
+                self._listen_address = addresses.pop()
             else:
-                self._listen_address = ipaddress.ip_address('127.0.0.1')
+                # Default to network information associated with an endpoint binding itself in absence of relations.
+                self._listen_address = self.model.get_binding(self._relation_name).network.bind_address
         return self._listen_address
 
     def set_tls_ca(self, tls_ca):
