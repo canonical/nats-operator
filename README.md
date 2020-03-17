@@ -29,6 +29,17 @@ all units is possible to configure via the relevant config options.
 juju deploy --resource nats=<path-to-nats-snap-file> <nats-charm-dir>
 ```
 
+# Deploy with TLS Termination via a Relation
+
+```bash
+juju deploy <nats-charm-dir> -n 3
+# The Vault charm implements the same interface.
+juju deploy cs:~containers/easyrsa
+juju relate nats easyrsa
+```
+
+A CA certificate obtained via a relation to a CA charm will also be exposed for NATS charm clients.
+
 # Debug
 
 ```bash

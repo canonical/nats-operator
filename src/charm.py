@@ -3,6 +3,7 @@
 import subprocess
 import string
 import random
+import socket
 import sys
 import logging
 sys.path.append('lib') # noqa
@@ -12,16 +13,18 @@ from ops.framework import EventBase, EventSource, StoredState
 from ops.main import main
 from ops.model import (
     ActiveStatus,
+    WaitingStatus,
     ModelError,
     BlockedStatus,
 )
-from interfaces import NatsCluster, NatsClient
+from interfaces import NatsCluster, NatsClient, CAClient
 
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.x509 import load_pem_x509_certificate
+from cryptography.hazmat.primitives import serialization
 
 
 logger = logging.getLogger(__name__)
@@ -45,9 +48,9 @@ class NatsCharm(CharmBase):
     NATS_SERVER_CONFIG_PATH = SERVER_PATH / 'nats.cfg'
     AUTH_TOKEN_PATH = SERVER_PATH / 'auth_secret'
     AUTH_TOKEN_LENGTH = 64
-    TLS_KEY_PATH = SERVER_PATH / 'tls/key.pem'
-    TLS_CERT_PATH = SERVER_PATH / 'tls/cert.pem'
-    TLS_CA_CERT_PATH = SERVER_PATH / 'tls/ca.pem'
+    TLS_KEY_PATH = SERVER_PATH / 'key.pem'
+    TLS_CERT_PATH = SERVER_PATH / 'cert.pem'
+    TLS_CA_CERT_PATH = SERVER_PATH / 'ca.pem'
 
     def __init__(self, framework, key):
         super().__init__(framework, key)
@@ -59,11 +62,16 @@ class NatsCharm(CharmBase):
                       self.on.cluster_relation_changed,
                       self.on.client_relation_joined):
             self.framework.observe(event, self)
+
         listen_on_all_addresses = self.model.config['listen-on-all-addresses']
         self.cluster = NatsCluster(self, 'cluster', listen_on_all_addresses)
         self.client = NatsClient(self, 'client', listen_on_all_addresses, self.model.config['client-port'])
         self.state.set_default(is_started=False, auth_token=self.get_auth_token(self.AUTH_TOKEN_LENGTH),
                                use_tls=None, use_tls_ca=None, nats_config_hash=None)
+
+        self.ca_client = CAClient(self, 'ca-client')
+        self.framework.observe(self.ca_client.on.tls_config_ready, self)
+        self.framework.observe(self.ca_client.on.ca_available, self)
 
     def on_install(self, event):
         try:
@@ -120,6 +128,19 @@ class NatsCharm(CharmBase):
                 self.TLS_CA_CERT_PATH.write_text(tls_ca_cert)
                 self.client.set_tls_ca(tls_ca_cert)
 
+    def on_ca_available(self, event):
+        self.reconfigure_nats()
+
+    def on_tls_config_ready(self, event):
+        self.TLS_KEY_PATH.write_bytes(self.ca_client.key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        ))
+        self.TLS_CERT_PATH.write_bytes(self.ca_client.certificate.public_bytes(encoding=serialization.Encoding.PEM))
+        self.TLS_CA_CERT_PATH.write_bytes(self.ca_client.ca_certificate.public_bytes(encoding=serialization.Encoding.PEM))
+        self.reconfigure_nats()
+
     def reconfigure_nats(self):
         logger.info('Reconfiguring NATS')
         self.handle_tls_config()
@@ -133,6 +154,8 @@ class NatsCharm(CharmBase):
             'debug': self.model.config['debug'],
             'trace': self.model.config['trace'],
         }
+
+        # Config is used in priority to using a relation to a CA charm.
         if self.state.use_tls:
             ctxt.update({
                 'use_tls': True,
@@ -143,7 +166,40 @@ class NatsCharm(CharmBase):
             })
             if self.state.use_tls_ca:
                 ctxt['tls_ca_cert_path'] = self.TLS_CA_CERT_PATH
-
+        elif self.ca_client.is_joined:
+            if not self.ca_client.is_ready:
+                # TODO: move SAN generation into a separate function
+                # Use a reverse resolution for bind-address of a cluster endpoint as a heuristic to
+                # determine a common name.
+                common_name = socket.getnameinfo((str(self.cluster.listen_address), 0), socket.NI_NAMEREQD)[0]
+                san_addresses = set()
+                san_addresses.add(str(self.cluster.listen_address))
+                san_addresses.add(str(self.cluster.ingress_address))
+                san_addresses.add(str(self.client.listen_address))
+                for addr in self.client.ingress_addresses:
+                    san_addresses.add(str(addr))
+                if self.model.config['listen-on-all-addresses']:
+                    raise RuntimeError('Generating certificates with listen-on-all-addresses option is not supported yet')
+                    # TODO: update with all host interface addresses to implement this for listen-on-all-addresses.
+                san_hostnames = set()
+                for addr in san_addresses:
+                    # May raise gaierror.
+                    name = socket.getnameinfo((str(addr), 0), socket.NI_NAMEREQD)[0]
+                    san_hostnames.add(name)
+                sans = san_addresses.union(san_hostnames)
+                self.ca_client.request_server_certificate(common_name, list(sans))
+                self.model.unit.status = WaitingStatus('Waiting for TLS configuration data from the CA client.')
+                return
+            ctxt.update({
+                'use_tls': True,
+                'tls_key_path': self.TLS_KEY_PATH,
+                'tls_cert_path': self.TLS_CERT_PATH,
+                'verify_tls_clients': self.model.config['verify-tls-clients'],
+                'map_tls_clients': self.model.config['map-tls-clients'],
+                'tls_ca_cert_path': self.TLS_CA_CERT_PATH,
+            })
+            self.client.set_tls_ca(
+                self.ca_client.ca_certificate.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8'))
         tenv = Environment(loader=FileSystemLoader('templates'))
         template = tenv.get_template('nats.cfg.j2')
         rendered_content = template.render(ctxt)
@@ -156,6 +212,7 @@ class NatsCharm(CharmBase):
             self.NATS_SERVER_CONFIG_PATH.write_text(rendered_content)
             if self.state.is_started:
                 subprocess.check_call(['systemctl', 'restart', self.NATS_SERVICE])
+        self.unit.status = ActiveStatus()
         self.client.expose_nats(auth_token=self.state.auth_token)
 
     def get_auth_token(self, length=None):
