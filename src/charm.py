@@ -76,12 +76,16 @@ class NatsCharm(CharmBase):
             nats_res = None
 
         cmd = ['snap', 'install']
-        # Install the core snap from a resource if provided. Alternatively, snapd
+        # Install the snaps from a resource if provided. Alternatively, snapd
         # will attempt to download it automatically.
         if core_res is not None and Path(core_res).stat().st_size:
             subprocess.check_call(cmd + ['--dangerous', core_res])
+        nats_cmd = cmd
         if nats_res is not None and Path(nats_res).stat().st_size:
-            nats_cmd = cmd + ['--dangerous', nats_res]
+            nats_cmd += ['--dangerous', nats_res]
+        else:
+            channel = self.model.config['snap-channel']
+            nats_cmd += ['nats', '--channel', channel]
         subprocess.check_call(nats_cmd)
         subprocess.check_call(['snap', 'stop', 'nats', '--disable'])
         self.SERVER_PATH.mkdir(exist_ok=True, mode=0o0700)
