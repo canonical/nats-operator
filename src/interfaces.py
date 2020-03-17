@@ -93,15 +93,16 @@ class NatsClient(Object):
     def expose_nats(self, auth_token=None):
         relations = self.model.relations[self._relation_name]
         for rel in relations:
+            token_field = ''
+            if auth_token is not None:
+                token_field = f'{auth_token}@'
             if self.state.tls_ca is not None:
-                url = f'tls://{self.listen_address}:{self._client_port}'
+                url = f'tls://{token_field}{self.listen_address}:{self._client_port}'
             else:
-                url = f'nats://{self.listen_address}:{self._client_port}'
+                url = f'nats://{token_field}{self.listen_address}:{self._client_port}'
             rel.data[self.model.unit]['url'] = url
             if self.model.unit.is_leader() and self.state.tls_ca is not None:
                 rel.data[self.model.app]['ca_cert'] = self.state.tls_ca
-                if auth_token is not None:
-                    rel.data[self.model.app]['auth_token'] = auth_token
 
     @property
     def ingress_addresses(self):
