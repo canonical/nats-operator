@@ -31,7 +31,7 @@ options:
             Optional if TLS certificates are signed by a certificate authority that the core snap trusts.
     verify-tls-clients:
         type: boolean
-        default: true
+        default: false
         description: Enable or disable mandatory client TLS certificate verification.
     map-tls-clients:
         type: boolean
