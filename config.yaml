@@ -49,5 +49,5 @@ options:
         description: Enable tracing of raw protocol messages for nats-server.
     snap-channel:
         type: string
-        default: edge
+        default: stable
         description: Snap Store channel to install the NATs snap from
