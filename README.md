@@ -1,15 +1,14 @@
 # Overview
 
-This charm provides a way to deploy a NATS core cluster.
+This charm provides a way to deploy a NATS core cluster. See https://nats.io/ for
+more information about NATS itself.
 
 Current features:
 
 * installation of nats-server via a snap (either from the store or a resource);
 * clustering with route URLs automatically added to the config of each unit;
 * debug options.
-
-TLS support is currently WIP but a cluster with a single certificate and key for
-all units is possible to configure via the relevant config options.
+* TLS support
 
 # Clustering Notes
 
@@ -26,7 +25,7 @@ all units is possible to configure via the relevant config options.
 # Deploy
 
 ```bash
-juju deploy --resource nats=<path-to-nats-snap-file> <nats-charm-dir>
+juju deploy <nats-charm-dir>
 ```
 
 # Deploy with TLS Termination via a Relation
