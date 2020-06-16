@@ -6,6 +6,7 @@ import random
 import socket
 import sys
 import logging
+import hashlib
 sys.path.append('lib') # noqa
 
 from ops.charm import CharmBase, CharmEvents
@@ -141,6 +142,11 @@ class NatsCharm(CharmBase):
         self.TLS_CA_CERT_PATH.write_bytes(self.ca_client.ca_certificate.public_bytes(encoding=serialization.Encoding.PEM))
         self.reconfigure_nats()
 
+    def generate_content_hash(self, content):
+        m = hashlib.sha256()
+        m.update(content.encode('utf-8'))
+        return m.hexdigest()
+
     def reconfigure_nats(self):
         logger.info('Reconfiguring NATS')
         self.handle_tls_config()
@@ -203,7 +209,7 @@ class NatsCharm(CharmBase):
         tenv = Environment(loader=FileSystemLoader('templates'))
         template = tenv.get_template('nats.cfg.j2')
         rendered_content = template.render(ctxt)
-        content_hash = hash(rendered_content)
+        content_hash = self.generate_content_hash(rendered_content)
         old_hash = self.state.nats_config_hash
         if old_hash != content_hash:
             logging.info(f'Config has changed - re-rendering a template to {self.NATS_SERVER_CONFIG_PATH}')
