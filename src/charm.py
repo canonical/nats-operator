@@ -208,7 +208,7 @@ class NatsCharm(CharmBase):
         if old_hash != content_hash:
             logging.info(f'Config has changed - re-rendering a template to {self.NATS_SERVER_CONFIG_PATH}')
             logger.info('')
-            self.state.rendered_content_hash = content_hash
+            self.state.nats_config_hash = content_hash
             self.NATS_SERVER_CONFIG_PATH.write_text(rendered_content)
             if self.state.is_started:
                 subprocess.check_call(['systemctl', 'restart', self.NATS_SERVICE])
