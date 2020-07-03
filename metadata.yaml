@@ -10,6 +10,7 @@ tags:
     - misc
 series:
     - bionic
+    - focal
 provides:
       client:
           interface: nats
