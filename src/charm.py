@@ -18,6 +18,7 @@ from ops.model import (
     ModelError,
     BlockedStatus,
 )
+from nrpe.client import NRPEClient
 from interfaces import NatsCluster, NatsClient, CAClient
 
 from jinja2 import Environment, FileSystemLoader
@@ -74,6 +75,9 @@ class NatsCharm(CharmBase):
         self.framework.observe(self.ca_client.on.tls_config_ready, self)
         self.framework.observe(self.ca_client.on.ca_available, self)
 
+        self.nrpe_client = NRPEClient(self, 'nrpe-external-master')
+        self.framework.observe(self.nrpe_client.on.nrpe_available, self)
+
     def on_install(self, event):
         try:
             core_res = self.model.resources.fetch('core')
@@ -111,10 +115,10 @@ class NatsCharm(CharmBase):
             load_pem_private_key(tls_key, backend=default_backend())
         tls_cert = self.model.config['tls-cert']
         if tls_cert:
-            load_pem_x509_certificate(tls_cert, bacend=default_backend())
+            load_pem_x509_certificate(tls_cert, backend=default_backend())
         tls_ca_cert = self.model.config['tls-ca-cert']
         if tls_ca_cert:
-            load_pem_x509_certificate(tls_ca_cert, default_backend())
+            load_pem_x509_certificate(tls_ca_cert, backend=default_backend())
 
         self.state.use_tls = tls_key and tls_cert
         self.state.use_tls_ca = bool(tls_ca_cert)
@@ -128,6 +132,9 @@ class NatsCharm(CharmBase):
             if self.state.use_tls_ca:
                 self.TLS_CA_CERT_PATH.write_text(tls_ca_cert)
                 self.client.set_tls_ca(tls_ca_cert)
+
+    def on_nrpe_available(self, event):
+        self.reconfigure_nats()
 
     def on_ca_available(self, event):
         self.reconfigure_nats()
@@ -206,6 +213,15 @@ class NatsCharm(CharmBase):
             })
             self.client.set_tls_ca(
                 self.ca_client.ca_certificate.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8'))
+
+        if self.nrpe_client.is_available:
+            self.nrpe_client.add_check(command=[
+                '/usr/lib/nagios/plugins/check_tcp',
+                '-H', str(self.client.listen_address),
+                '-p', str(self.model.config['client-port'])
+            ], name='check_tcp')
+            self.nrpe_client.commit()
+
         tenv = Environment(loader=FileSystemLoader('templates'))
         template = tenv.get_template('nats.cfg.j2')
         rendered_content = template.render(ctxt)
@@ -213,7 +229,6 @@ class NatsCharm(CharmBase):
         old_hash = self.state.nats_config_hash
         if old_hash != content_hash:
             logging.info(f'Config has changed - re-rendering a template to {self.NATS_SERVER_CONFIG_PATH}')
-            logger.info('')
             self.state.nats_config_hash = content_hash
             self.NATS_SERVER_CONFIG_PATH.write_text(rendered_content)
             if self.state.is_started:
