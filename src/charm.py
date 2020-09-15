@@ -215,11 +215,12 @@ class NatsCharm(CharmBase):
                 self.ca_client.ca_certificate.public_bytes(encoding=serialization.Encoding.PEM).decode('utf-8'))
 
         if self.nrpe_client.is_available:
+            check_name = "check_{}".format(self.model.unit.name.replace("/", "_"))
             self.nrpe_client.add_check(command=[
                 '/usr/lib/nagios/plugins/check_tcp',
                 '-H', str(self.client.listen_address),
                 '-p', str(self.model.config['client-port'])
-            ], name='check_tcp')
+            ], name=check_name)
             self.nrpe_client.commit()
 
         tenv = Environment(loader=FileSystemLoader('templates'))
