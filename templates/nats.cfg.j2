@@ -1,4 +1,7 @@
 listen: {{client_listen_address}}:{{client_port}}
+# By default we listen on localhost only to allow a subordinate telegraf
+# to consume metrics and forward them elsewhere
+http: localhost:8222
 authorization: {
   token: "{{auth_token}}"
 }
