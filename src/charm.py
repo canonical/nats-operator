@@ -69,7 +69,8 @@ class NatsCharm(CharmBase):
         self.cluster = NatsCluster(self, 'cluster', listen_on_all_addresses)
         self.client = NatsClient(self, 'client', listen_on_all_addresses, self.model.config['client-port'])
         self.state.set_default(is_started=False, auth_token=self.get_auth_token(self.AUTH_TOKEN_LENGTH),
-                               use_tls=None, use_tls_ca=None, nats_config_hash=None)
+                               use_tls=None, use_tls_ca=None, nats_config_hash=None,
+                               client_port=None)
 
         self.ca_client = CAClient(self, 'ca-client')
         self.framework.observe(self.ca_client.on.tls_config_ready, self)
@@ -234,8 +235,19 @@ class NatsCharm(CharmBase):
             self.NATS_SERVER_CONFIG_PATH.write_text(rendered_content)
             if self.state.is_started:
                 subprocess.check_call(['systemctl', 'restart', self.NATS_SERVICE])
-        self.unit.status = ActiveStatus()
         self.client.expose_nats(auth_token=self.state.auth_token)
+
+        client_port = self.model.config['client-port']
+        if (client_port is None or client_port == 0) and (self.state.client_port is not None or len(self.state.client_port) > 0):
+            self._close_port(self.state.client_port)
+        else:
+            port = '{}/tcp'.format(client_port)
+            if self.state.client_port is not None and port != self.state.client_port:
+                self._close_port(self.state.client_port)
+            self._open_port(port)
+            self.state.client_port = port
+
+        self.unit.status = ActiveStatus()
 
     def get_auth_token(self, length=None):
         '''Generate a random auth token.'''
@@ -262,6 +274,12 @@ class NatsCharm(CharmBase):
 
     def on_upgrade_charm(self, event):
         self.reconfigure_nats()
+
+    def _open_port(self, port):
+        subprocess.check_call(['open-port', port])
+
+    def _close_port(self, port):
+        subprocess.check_call(['close-port', port])
 
 
 if __name__ == '__main__':
