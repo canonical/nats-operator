@@ -25,6 +25,7 @@ Current features:
 # Deploy
 
 ```bash
+git submodule update --init
 juju deploy <nats-charm-dir>
 ```
 
@@ -38,6 +39,12 @@ juju relate nats easyrsa
 ```
 
 A CA certificate obtained via a relation to a CA charm will also be exposed for NATS charm clients.
+
+# Build for publishing
+
+```bash
+zip --symlinks -r nats.charm *
+```
 
 # Debug
 
