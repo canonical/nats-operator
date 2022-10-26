@@ -11,6 +11,7 @@ tags:
 series:
     - bionic
     - focal
+    - jammy
 provides:
       client:
           interface: nats
