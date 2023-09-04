@@ -1,0 +1,53 @@
+name: Auto-update Parca Container
+on:
+  # Manual trigger
+  workflow_dispatch:
+  # Check regularly the upstream every Monday at 12:00
+  schedule:
+    - cron: "0 12 * * Mon"
+
+jobs:
+  update-parca:
+    name: Check Parca version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+        with:
+          fetch-depth: 0
+
+      - name: Bump Parca
+        id: bump
+        run: |
+          # Define URL to scrape for package versions
+          package_url="https://github.com/parca-dev/parca/pkgs/container/parca"
+
+          # Get the later Parca container image
+          next_parca="$(curl -sL "$package_url" | grep -m1 -Po 'tag=\Kmain-[0-9]{10}-[0-9a-f]{8}')"
+
+          # Bump the metadata.yaml file to the latest version
+          sed -i -e "s/main-[0-9]\{10\}-[0-9a-f]\{8\}/$next_parca/g" metadata.yaml
+
+          # Output the next version
+          echo "version=$next_parca" >> $GITHUB_OUTPUT
+
+      - uses: tibdex/github-app-token@b62528385c34dbc9f38e5f4225ac829252d1ea92 # v1
+        id: generate-token
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_KEY }}
+
+      - name: Create a PR for local changes
+        uses: peter-evans/create-pull-request@153407881ec5c347639a548ade7d8ad1d6740e38 # v5
+        id: cpr
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          commit-message: "chore: bump container version to `parca/${{ steps.bump.outputs.version }}`"
+          committer: "Github Actions <github-actions@github.com>"
+          author: "Github Actions <github-actions@github.com>"
+          title: "chore(deps): bump Parca container to `parca/${{ steps.bump.outputs.version }}`"
+          body: Automated action to bump to container to `parca/${{ steps.bump.outputs.version }}`.
+          branch: "auto-parca-${{ steps.bump.outputs.version }}"
+          delete-branch: true
+          reviewers: jnsgruk
+          assignees: jnsgruk
