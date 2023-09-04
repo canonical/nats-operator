@@ -6,5 +6,5 @@ module.exports = {
   onboarding: true,
   platform: "github",
   includeForks: true,
-  repositories: ["jnsgruk/parca-k8s-operator"],
+  repositories: ["jat-canonical/nats-operator"],
 }

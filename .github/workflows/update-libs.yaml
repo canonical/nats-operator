@@ -16,12 +16,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check libs
-        run: |
-          sudo snap install charmcraft --classic --channel latest/stable
-          charmcraft fetch-lib
-        env:
-          CHARMCRAFT_AUTH: "${{ secrets.CHARMHUB_TOKEN }}"
+      # FIXME: Enable this when we can configure CHARMHUB_TOKEN
+      # - name: Check libs
+      #   run: |
+      #     sudo snap install charmcraft --classic --channel latest/stable
+      #     charmcraft fetch-lib
+      #   env:
+      #     CHARMCRAFT_AUTH: "${{ secrets.CHARMHUB_TOKEN }}"
 
       - uses: tibdex/github-app-token@b62528385c34dbc9f38e5f4225ac829252d1ea92 # v1
         id: generate-token

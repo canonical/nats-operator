@@ -1,13 +1,15 @@
 name: Release to latest/edge
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - ".github/**"
-      - ".gitignore"
-      - "tox.ini"
+  # TODO: figure out a release process for the charming-actions
+  workflow_dispatch:
+  # push:
+  #   branches:
+  #     - main
+  #   paths-ignore:
+  #     - ".github/**"
+  #     - ".gitignore"
+  #     - "tox.ini"
 
 jobs:
   test:
