@@ -1,1 +1,5 @@
 ops==2.6.0
+pyyaml
+charmhelpers
+jinja2
+git+https://github.com/canonical/ops-lib-nrpe.git#egg=ops-lib-nrpe

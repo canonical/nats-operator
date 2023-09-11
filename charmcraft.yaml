@@ -1,0 +1,27 @@
+type: charm
+bases:
+- build-on:
+  - name: "ubuntu"
+    channel: "20.04"
+  run-on:
+  - name: "ubuntu"
+    channel: "20.04"
+    architectures: [amd64, arm64]
+- build-on:
+  - name: "ubuntu"
+    channel: "22.04"
+  run-on:
+  - name: "ubuntu"
+    channel: "22.04"
+    architectures: [amd64, arm64]
+parts:
+  charm:
+    source: .
+    charm-requirements: [requirements.txt]
+    build-packages: [git]
+    override-build: |
+      craftctl default
+      cp -r "$CRAFT_PART_SRC"/templates "$CRAFT_PART_INSTALL"/
+    prime:
+    - templates
+
