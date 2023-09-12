@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class NatsCluster(Object):
-    """Peer relation `nat-cluster` interface for the NATS charm."""
+    """Peer relation `nats-cluster` interface for the NATS charm."""
 
     def __init__(self, charm, relation_name, listen_on_all_addresses):
         super().__init__(charm, relation_name)
@@ -105,7 +105,7 @@ class NatsClient(Object):
         self.state.tls_ca = tls_ca
 
     def expose_nats(self, auth_token=None):
-        """Exposes NATS to the outside world."""
+        """Exposes NATS to the outside world by publishing cert and url to relation data."""
         relations = self.model.relations[self._relation_name]
         for rel in relations:
             token_field = ""
@@ -153,14 +153,15 @@ class CAClientEvents(ObjectEvents):
 
 
 class CAClient(Object):
-    """Interface for the `tls-ceritificates` relation."""
+    """Implement for the requires side in `tls-ceritificates` relation."""
 
     on: ObjectEvents = CAClientEvents()
     state = StoredState()
 
     def __init__(self, charm, relation_name):
-        """Charm -- a NatsCharm instance.
+        """Initialise relation for `tls-certificates`.
 
+        Charm -- a NatsCharm instance.
         relation_name -- a name of the relation with the tls-certificates interface for this charm.
         common_name -- a name to place into the CN field of a certificate.
         sans -- Subject Alternative Names (per RFC 5280): names or IPs to include in a requested certificate.

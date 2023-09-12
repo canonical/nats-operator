@@ -37,15 +37,17 @@ class NatsCharmEvents(CharmEvents):
     nats_started = EventSource(NatsStartedEvent)
 
 
+SNAP_COMMON_PATH = Path("/var/snap/nats/common")
+SERVER_PATH = SNAP_COMMON_PATH / "server"
+
+
 class NatsCharm(CharmBase):
     """Charmed Operator to deploy NATS - a distributed message bus for services."""
 
-    on = NatsCharmEvents()
+    on: CharmEvents = NatsCharmEvents()
     state = StoredState()
 
     NATS_SERVICE = "snap.nats.server.service"
-    SNAP_COMMON_PATH = Path("/var/snap/nats/common")
-    SERVER_PATH = SNAP_COMMON_PATH / "server"
     NATS_SERVER_CONFIG_PATH = SERVER_PATH / "nats.cfg"
     AUTH_TOKEN_PATH = SERVER_PATH / "auth_secret"
     AUTH_TOKEN_LENGTH = 64
@@ -56,26 +58,28 @@ class NatsCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
-        self.framework.observe(self.on.install, self._on_install)
-        self.framework.observe(self.on.start, self._on_start)
-        self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
-        self.framework.observe(self.on.config_changed, self._on_config_changed)
-        self.framework.observe(self.on.cluster_relation_changed, self._on_cluster_relation_changed)
-        self.framework.observe(self.on.client_relation_joined, self._on_client_relation_joined)
-
-        listen_on_all_addresses = self.model.config["listen-on-all-addresses"]
-        self.cluster = NatsCluster(self, "cluster", listen_on_all_addresses)
-        self.client = NatsClient(
-            self, "client", listen_on_all_addresses, self.model.config["client-port"]
-        )
         self.state.set_default(
             is_started=False,
-            auth_token=self.get_auth_token(self.AUTH_TOKEN_LENGTH),
+            auth_token=NatsCharm.get_auth_token(self.AUTH_TOKEN_LENGTH),
             use_tls=None,
             use_tls_ca=None,
             nats_config_hash=None,
             client_port=None,
         )
+
+        self.framework.observe(self.on.install, self._on_install)
+        self.framework.observe(self.on.start, self._on_start)
+        self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
+
+        listen_on_all_addresses = self.model.config["listen-on-all-addresses"]
+        self.cluster = NatsCluster(self, "cluster", listen_on_all_addresses)
+        self.framework.observe(self.on.cluster_relation_changed, self._on_cluster_relation_changed)
+
+        self.client = NatsClient(
+            self, "client", listen_on_all_addresses, self.model.config["client-port"]
+        )
+        self.framework.observe(self.on.client_relation_joined, self._on_client_relation_joined)
 
         self.ca_client = CAClient(self, "ca-client")
         self.framework.observe(self.ca_client.on.tls_config_ready, self._on_tls_config_ready)
@@ -84,7 +88,7 @@ class NatsCharm(CharmBase):
         self.nrpe_client = NRPEClient(self, "nrpe-external-master")
         self.framework.observe(self.nrpe_client.on.nrpe_available, self._on_nrpe_available)
 
-    def _on_install(self, event):
+    def _on_install(self, _):
         try:
             core_res = self.model.resources.fetch("core")
         except ModelError:
@@ -107,7 +111,7 @@ class NatsCharm(CharmBase):
             nats_cmd += ["nats", "--channel", channel]
         subprocess.check_call(nats_cmd)
         subprocess.check_call(["snap", "stop", "nats", "--disable"])
-        self.SERVER_PATH.mkdir(exist_ok=True, mode=0o0700)
+        SERVER_PATH.mkdir(exist_ok=True, mode=0o0700)
 
     def handle_tls_config(self):
         """Handle TLS parameters passed via charm config.
@@ -118,16 +122,17 @@ class NatsCharm(CharmBase):
         """
         tls_key = self.model.config["tls-key"]
         if tls_key:
-            load_pem_private_key(tls_key, backend=default_backend())
+            load_pem_private_key(tls_key.encode("utf-8"), password=None, backend=default_backend())
         tls_cert = self.model.config["tls-cert"]
         if tls_cert:
-            load_pem_x509_certificate(tls_cert, backend=default_backend())
+            load_pem_x509_certificate(tls_cert.encode("utf-8"), backend=default_backend())
         tls_ca_cert = self.model.config["tls-ca-cert"]
         if tls_ca_cert:
-            load_pem_x509_certificate(tls_ca_cert, backend=default_backend())
+            load_pem_x509_certificate(tls_ca_cert.encode("utf-8"), backend=default_backend())
 
         self.state.use_tls = tls_key and tls_cert
         self.state.use_tls_ca = bool(tls_ca_cert)
+
         # Block if one of the values is specified but not the other.
         if bool(tls_key) ^ bool(tls_cert):
             self.status = BlockedStatus("both TLS key and TLS cert must be specified")
@@ -139,13 +144,13 @@ class NatsCharm(CharmBase):
                 self.TLS_CA_CERT_PATH.write_text(tls_ca_cert)
                 self.client._set_tls_ca(tls_ca_cert)
 
-    def _on_nrpe_available(self, event):
+    def _on_nrpe_available(self, _):
         self._reconfigure_nats()
 
-    def _on_ca_available(self, event):
+    def _on_ca_available(self, _):
         self._reconfigure_nats()
 
-    def _on_tls_config_ready(self, event):
+    def _on_tls_config_ready(self, _):
         self.TLS_KEY_PATH.write_bytes(
             self.ca_client.key.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -283,7 +288,8 @@ class NatsCharm(CharmBase):
 
         self.unit.status = ActiveStatus()
 
-    def get_auth_token(self, length=None):
+    @classmethod
+    def get_auth_token(cls, length=None):
         """Generate a random auth token."""
         if not isinstance(length, int):
             raise RuntimeError("invalid length provided for a token")
@@ -291,22 +297,22 @@ class NatsCharm(CharmBase):
         rng = random.SystemRandom()
         return "".join([rng.choice(alphanumeric_chars) for _ in range(length)])
 
-    def _on_start(self, event):
+    def _on_start(self, _):
         subprocess.check_call(["snap", "start", "nats", "--enable"])
         self.state.is_started = True
         self.on.nats_started.emit()
         self.model.unit.status = ActiveStatus()
 
-    def _on_cluster_relation_changed(self, event):
+    def _on_cluster_relation_changed(self, _):
         self._reconfigure_nats()
 
-    def _on_client_relation_joined(self, event):
+    def _on_client_relation_joined(self, _):
         self._reconfigure_nats()
 
-    def _on_config_changed(self, event):
+    def _on_config_changed(self, _):
         self._reconfigure_nats()
 
-    def _on_upgrade_charm(self, event):
+    def _on_upgrade_charm(self, _):
         self._reconfigure_nats()
 
     def _open_port(self, port):
