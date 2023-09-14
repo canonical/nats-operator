@@ -6,7 +6,6 @@ on:
       - ".github/workflows/release.yaml"
       - ".github/workflows/renovate.yaml"
       - ".github/workflows/update-libs.yaml"
-      - ".github/workflows/update-parca.yaml"
       - ".gitignore"
       - ".jujuignore"
   push:

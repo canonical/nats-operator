@@ -18,7 +18,7 @@ parts:
   charm:
     source: .
     charm-requirements: [requirements.txt]
-    build-packages: [git]
+    build-packages: [git, libffi-dev]
     override-build: |
       craftctl default
       cp -r "$CRAFT_PART_SRC"/templates "$CRAFT_PART_INSTALL"/

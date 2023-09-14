@@ -9,7 +9,6 @@ subordinate: false
 tags:
     - misc
 series:
-    - bionic
     - focal
     - jammy
 provides:
