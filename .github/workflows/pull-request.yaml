@@ -19,5 +19,3 @@ concurrency:
 jobs:
   test:
     uses: ./.github/workflows/build-and-test.yaml
-    secrets:
-      CHARMHUB_TOKEN: "${{ secrets.CHARMHUB_TOKEN }}"
