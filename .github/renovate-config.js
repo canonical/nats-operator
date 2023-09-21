@@ -6,5 +6,5 @@ module.exports = {
   onboarding: true,
   platform: "github",
   includeForks: true,
-  repositories: ["jat-canonical/nats-operator"],
+  repositories: ["canonical/nats-operator"],
 }
