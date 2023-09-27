@@ -1,0 +1,22 @@
+type: charm
+bases:
+- build-on:
+  - name: "ubuntu"
+    channel: "20.04"
+  run-on:
+  - name: "ubuntu"
+    channel: "20.04"
+    architectures: [arm64, amd64]
+  - name: "ubuntu"
+    channel: "22.04"
+    architectures: [arm64, amd64]
+parts:
+  charm:
+    charm-requirements: ["requirements.txt"]
+    build-packages:
+    - git
+    - libffi-dev
+    - libssl-dev
+    - rustc
+    - cargo
+    - pkg-config
