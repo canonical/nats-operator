@@ -1,0 +1,11 @@
+name: nats-tester
+display-name: nats-test-app
+description: a testing application for nats charm
+summary: A simple application to relate to the nats interface to test the nats charm
+subordinate: false
+series:
+    - focal
+    - jammy
+requires:
+    client:
+        interface: nats

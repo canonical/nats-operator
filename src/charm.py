@@ -69,24 +69,24 @@ class NatsCharm(CharmBase):
 
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
-        self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
-        self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.upgrade_charm, self._reconfigure_nats)
+        self.framework.observe(self.on.config_changed, self._reconfigure_nats)
 
         listen_on_all_addresses = self.model.config["listen-on-all-addresses"]
         self.cluster = NatsCluster(self, "cluster", listen_on_all_addresses)
-        self.framework.observe(self.on.cluster_relation_changed, self._on_cluster_relation_changed)
+        self.framework.observe(self.on.cluster_relation_changed, self._reconfigure_nats)
 
         self.client = NatsClient(
             self, "client", listen_on_all_addresses, self.model.config["client-port"]
         )
-        self.framework.observe(self.on.client_relation_joined, self._on_client_relation_joined)
+        self.framework.observe(self.on.client_relation_joined, self._reconfigure_nats)
 
         self.ca_client = CAClient(self, "ca-client")
         self.framework.observe(self.ca_client.on.tls_config_ready, self._on_tls_config_ready)
-        self.framework.observe(self.ca_client.on.ca_available, self._on_ca_available)
+        self.framework.observe(self.ca_client.on.ca_available, self._reconfigure_nats)
 
         self.nrpe_client = NRPEClient(self, "nrpe-external-master")
-        self.framework.observe(self.nrpe_client.on.nrpe_available, self._on_nrpe_available)
+        self.framework.observe(self.nrpe_client.on.nrpe_available, self._reconfigure_nats)
 
     def _on_install(self, _):
         try:
@@ -144,13 +144,7 @@ class NatsCharm(CharmBase):
                 self.TLS_CA_CERT_PATH.write_text(tls_ca_cert)
                 self.client._set_tls_ca(tls_ca_cert)
 
-    def _on_nrpe_available(self, _):
-        self._reconfigure_nats()
-
-    def _on_ca_available(self, _):
-        self._reconfigure_nats()
-
-    def _on_tls_config_ready(self, _):
+    def _on_tls_config_ready(self, event):
         self.TLS_KEY_PATH.write_bytes(
             self.ca_client.key.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -164,7 +158,7 @@ class NatsCharm(CharmBase):
         self.TLS_CA_CERT_PATH.write_bytes(
             self.ca_client.ca_certificate.public_bytes(encoding=serialization.Encoding.PEM)
         )
-        self._reconfigure_nats()
+        self._reconfigure_nats(event)
 
     def _generate_content_hash(self, content):
         m = hashlib.sha256()
@@ -172,7 +166,7 @@ class NatsCharm(CharmBase):
         return m.hexdigest()
 
     # FIXME: reduce this function's complexity to satisfy the linter
-    def _reconfigure_nats(self):  # noqa: C901
+    def _reconfigure_nats(self, event):  # noqa: C901
         logger.info("Reconfiguring NATS")
         self.handle_tls_config()
         ctxt = {
@@ -302,18 +296,6 @@ class NatsCharm(CharmBase):
         self.state.is_started = True
         self.on.nats_started.emit()
         self.model.unit.status = ActiveStatus()
-
-    def _on_cluster_relation_changed(self, _):
-        self._reconfigure_nats()
-
-    def _on_client_relation_joined(self, _):
-        self._reconfigure_nats()
-
-    def _on_config_changed(self, _):
-        self._reconfigure_nats()
-
-    def _on_upgrade_charm(self, _):
-        self._reconfigure_nats()
 
     def _open_port(self, port):
         subprocess.check_call(["open-port", port])

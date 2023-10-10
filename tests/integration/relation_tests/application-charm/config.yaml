@@ -1,0 +1,5 @@
+options:
+    check_clustering:
+        type: boolean
+        default: false
+        description: Whether to test clustering for the NATS cluster
