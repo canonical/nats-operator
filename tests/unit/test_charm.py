@@ -1,6 +1,6 @@
 from pathlib import Path
 from subprocess import CalledProcessError
-from unittest.mock import PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 from charm import NatsCharm
@@ -11,10 +11,11 @@ from ops.testing import Harness
 
 @pytest.fixture
 def harness(request):
-    harness = Harness(NatsCharm)
-    request.addfinalizer(harness.cleanup)
-    harness.begin()
-    yield harness
+    with patch("charm.snap.SnapCache"):
+        harness = Harness(NatsCharm)
+        request.addfinalizer(harness.cleanup)
+        harness.begin()
+        yield harness
 
 
 @pytest.fixture
@@ -39,27 +40,33 @@ def tls_config() -> tuple[bytes, bytes]:
     )
 
 
-def test_on_install_with_snapd_resource(harness: Harness):
-    with patch("charm.subprocess.check_call") as mocked_cmd, patch(
-        "charm.SERVER_PATH"
-    ) as mocked_server_path:
+def test_on_install_with_snapd_resource(request):
+    with patch("charm.SERVER_PATH") as mocked_server_path, \
+        patch("charm.snap") as mocked_snap:
+        harness = Harness(NatsCharm)
+        mocked_snap.install_local = MagicMock()
+        request.addfinalizer(harness.cleanup)
+        harness.begin()
         harness.add_resource("core", "core.snap")
         harness.charm.on.install.emit()
-        assert mocked_cmd.call_count == 3
         mocked_server_path.mkdir.return_value = None
         mocked_server_path.mkdir.assert_called_once()
+        mocked_snap.install_local.assert_called_once()
 
 
-def test_on_install_with_nats_resource(harness: Harness):
-    with patch("charm.subprocess.check_call") as mocked_cmd, patch(
+def test_on_install_with_nats_resource(request):
+    with patch("charm.snap") as mocked_snap, patch(
         "charm.SERVER_PATH"
     ) as mocked_server_path:
+        harness = Harness(NatsCharm)
+        mocked_snap.install_local = MagicMock()
+        request.addfinalizer(harness.cleanup)
+        harness.begin()
         harness.add_resource("nats", "nats")
         harness.charm.on.install.emit()
         mocked_server_path.mkdir.return_value = None
         mocked_server_path.mkdir.assert_called_once()
-        assert mocked_cmd.call_count == 2
-
+        mocked_snap.install_local.assert_called_once()
 
 def DISABLED_test_on_install_snap_failure(harness: Harness):  # noqa: N802
     with patch("charm.subprocess.check_call") as mocked_cmd:
@@ -69,10 +76,9 @@ def DISABLED_test_on_install_snap_failure(harness: Harness):  # noqa: N802
 
 
 def test_on_start_all_successfull(harness: Harness):
-    with patch("charm.subprocess.check_call"):
-        harness.charm.on.start.emit()
-        assert harness.model.unit.status == ActiveStatus("")
-        assert harness.charm.state.is_started
+    harness.charm.on.start.emit()
+    assert harness.model.unit.status == ActiveStatus("")
+    assert harness.charm.state.is_started
 
 
 def DISABLED_test_block_if_only_one_tls_key_or_cert_given(  # noqa: N802
@@ -83,7 +89,7 @@ def DISABLED_test_block_if_only_one_tls_key_or_cert_given(  # noqa: N802
     ) as cluster_listen_address, patch(
         "charm.NatsClient.listen_address", new_callable=PropertyMock
     ) as client_listen_address, patch(
-        "charm.NatsCharm.NATS_SERVER_CONFIG_PATH"
+        "charm.NATS_SERVER_CONFIG_PATH"
     ) as mock_config_path, patch(
         "charm.NatsCharm._open_port"
     ):
@@ -97,7 +103,7 @@ def DISABLED_test_block_if_only_one_tls_key_or_cert_given(  # noqa: N802
 
 
 def test_generate_auth_token():
-    token = NatsCharm.get_auth_token(NatsCharm.AUTH_TOKEN_LENGTH)
+    token = NatsCharm.get_auth_token(64)
     assert len(token) == 64
 
 
@@ -125,7 +131,7 @@ def test_on_config_changed_rewrites_config(tmp_path, harness: Harness):
     ), patch(
         "charm.NatsCluster.ingress_address", new_callable=PropertyMock, return_value="1.2.3.4"
     ), patch(
-        "charm.NatsCharm.NATS_SERVER_CONFIG_PATH", new=Path(config_path)
+        "charm.NATS_SERVER_CONFIG_PATH", new=Path(config_path)
     ) as mock_config_path, patch(
         "charm.NatsCharm._open_port", return_value=None
     ), patch(
@@ -159,7 +165,7 @@ def test_writes_nrpe_checks_on_nrpe_available(harness: Harness):
     ), patch(
         "charm.NatsClient.listen_address", new_callable=PropertyMock, return_value="1.2.3.4"
     ), patch(
-        "charm.NatsCharm.NATS_SERVER_CONFIG_PATH"
+        "charm.NATS_SERVER_CONFIG_PATH"
     ), patch(
         "charm.NatsCharm._open_port", return_value=None
     ), patch.object(
@@ -179,7 +185,7 @@ def test_published_nats_client_data_to_relation(harness: Harness):
     ), patch(
         "charm.NatsClient.listen_address", new_callable=PropertyMock, return_value="1.2.3.4"
     ), patch(
-        "charm.NatsCharm.NATS_SERVER_CONFIG_PATH"
+        "charm.NATS_SERVER_CONFIG_PATH"
     ), patch(
         "charm.NatsCharm._open_port", return_value=None
     ):

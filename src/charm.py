@@ -10,6 +10,7 @@ import string
 import subprocess
 from pathlib import Path
 
+from lib.charms.operator_libs_linux.v2 import snap
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
@@ -17,7 +18,7 @@ from cryptography.x509 import load_pem_x509_certificate
 from interfaces import CAClient, NatsClient, NatsCluster
 from jinja2 import Environment, FileSystemLoader
 from nrpe.client import NRPEClient  # noqa: E402
-from ops import EventBase, EventSource, StoredState
+from ops import EventBase, EventSource, InstallEvent, StoredState
 from ops.charm import CharmBase, CharmEvents
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, ModelError, WaitingStatus
@@ -39,6 +40,13 @@ class NatsCharmEvents(CharmEvents):
 
 SNAP_COMMON_PATH = Path("/var/snap/nats/common")
 SERVER_PATH = SNAP_COMMON_PATH / "server"
+SNAP_NAME = 'nats'
+NATS_SERVER_CONFIG_PATH = SERVER_PATH / "nats.cfg"
+AUTH_TOKEN_PATH = SERVER_PATH / "auth_secret"
+AUTH_TOKEN_LENGTH = 64
+TLS_KEY_PATH = SERVER_PATH / "key.pem"
+TLS_CERT_PATH = SERVER_PATH / "cert.pem"
+TLS_CA_CERT_PATH = SERVER_PATH / "ca.pem"
 
 
 class NatsCharm(CharmBase):
@@ -47,20 +55,12 @@ class NatsCharm(CharmBase):
     on: CharmEvents = NatsCharmEvents()
     state = StoredState()
 
-    NATS_SERVICE = "snap.nats.server.service"
-    NATS_SERVER_CONFIG_PATH = SERVER_PATH / "nats.cfg"
-    AUTH_TOKEN_PATH = SERVER_PATH / "auth_secret"
-    AUTH_TOKEN_LENGTH = 64
-    TLS_KEY_PATH = SERVER_PATH / "key.pem"
-    TLS_CERT_PATH = SERVER_PATH / "cert.pem"
-    TLS_CA_CERT_PATH = SERVER_PATH / "ca.pem"
-
     def __init__(self, *args):
         super().__init__(*args)
 
         self.state.set_default(
             is_started=False,
-            auth_token=NatsCharm.get_auth_token(self.AUTH_TOKEN_LENGTH),
+            auth_token=NatsCharm.get_auth_token(AUTH_TOKEN_LENGTH),
             use_tls=None,
             use_tls_ca=None,
             nats_config_hash=None,
@@ -80,7 +80,7 @@ class NatsCharm(CharmBase):
             self, "client", listen_on_all_addresses, self.model.config["client-port"]
         )
         self.framework.observe(self.on.client_relation_joined, self._reconfigure_nats)
-
+        self._snap = snap.SnapCache()
         self.ca_client = CAClient(self, "ca-client")
         self.framework.observe(self.ca_client.on.tls_config_ready, self._on_tls_config_ready)
         self.framework.observe(self.ca_client.on.ca_available, self._reconfigure_nats)
@@ -88,7 +88,7 @@ class NatsCharm(CharmBase):
         self.nrpe_client = NRPEClient(self, "nrpe-external-master")
         self.framework.observe(self.nrpe_client.on.nrpe_available, self._reconfigure_nats)
 
-    def _on_install(self, _):
+    def _on_install(self, event: InstallEvent):
         try:
             core_res = self.model.resources.fetch("core")
         except ModelError:
@@ -98,19 +98,19 @@ class NatsCharm(CharmBase):
         except ModelError:
             nats_res = None
 
-        cmd = ["snap", "install"]
+        nats_snap = None
+
         # Install the snaps from a resource if provided. Alternatively, snapd
         # will attempt to download it automatically.
         if core_res is not None and Path(core_res).stat().st_size:
-            subprocess.check_call(cmd + ["--dangerous", core_res])
-        nats_cmd = cmd
+            snap.install_local(core_res, dangerous=True)
         if nats_res is not None and Path(nats_res).stat().st_size:
-            nats_cmd += ["--dangerous", nats_res]
+            nats_snap = snap.install_local(nats_res, dangerous=True)
         else:
-            channel = self.model.config["snap-channel"]
-            nats_cmd += ["nats", "--channel", channel]
-        subprocess.check_call(nats_cmd)
-        subprocess.check_call(["snap", "stop", "nats", "--disable"])
+            nats_snap = self._snap[SNAP_NAME]
+            if not nats_snap.present:
+                nats_snap.ensure(snap.SnapState.Latest, channel=self.model.config['snap-channel'])
+        nats_snap.stop(disable=True)
         SERVER_PATH.mkdir(exist_ok=True, mode=0o0700)
 
     def handle_tls_config(self):
@@ -137,25 +137,25 @@ class NatsCharm(CharmBase):
         if bool(tls_key) ^ bool(tls_cert):
             self.status = BlockedStatus("both TLS key and TLS cert must be specified")
         if self.state.use_tls:
-            self.TLS_KEY_PATH.write_text(tls_key)
-            self.TLS_CERT_PATH.write_text(tls_cert)
+            TLS_KEY_PATH.write_text(tls_key)
+            TLS_CERT_PATH.write_text(tls_cert)
             # A CA cert is optional because NATS may rely on system-trusted (core snap) CA certs.
             if self.state.use_tls_ca:
-                self.TLS_CA_CERT_PATH.write_text(tls_ca_cert)
+                TLS_CA_CERT_PATH.write_text(tls_ca_cert)
                 self.client._set_tls_ca(tls_ca_cert)
 
     def _on_tls_config_ready(self, event):
-        self.TLS_KEY_PATH.write_bytes(
+        TLS_KEY_PATH.write_bytes(
             self.ca_client.key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.TraditionalOpenSSL,
                 encryption_algorithm=serialization.NoEncryption(),
             )
         )
-        self.TLS_CERT_PATH.write_bytes(
+        TLS_CERT_PATH.write_bytes(
             self.ca_client.certificate.public_bytes(encoding=serialization.Encoding.PEM)
         )
-        self.TLS_CA_CERT_PATH.write_bytes(
+        TLS_CA_CERT_PATH.write_bytes(
             self.ca_client.ca_certificate.public_bytes(encoding=serialization.Encoding.PEM)
         )
         self._reconfigure_nats(event)
@@ -185,14 +185,14 @@ class NatsCharm(CharmBase):
             ctxt.update(
                 {
                     "use_tls": True,
-                    "tls_key_path": self.TLS_KEY_PATH,
-                    "tls_cert_path": self.TLS_CERT_PATH,
+                    "tls_key_path": TLS_KEY_PATH,
+                    "tls_cert_path": TLS_CERT_PATH,
                     "verify_tls_clients": self.model.config["verify-tls-clients"],
                     "map_tls_clients": self.model.config["map-tls-clients"],
                 }
             )
             if self.state.use_tls_ca:
-                ctxt["tls_ca_cert_path"] = self.TLS_CA_CERT_PATH
+                ctxt["tls_ca_cert_path"] = TLS_CA_CERT_PATH
         elif self.ca_client.is_joined:
             if not self.ca_client.is_ready:
                 # TODO: move SAN generation into a separate function
@@ -226,11 +226,11 @@ class NatsCharm(CharmBase):
             ctxt.update(
                 {
                     "use_tls": True,
-                    "tls_key_path": self.TLS_KEY_PATH,
-                    "tls_cert_path": self.TLS_CERT_PATH,
+                    "tls_key_path": TLS_KEY_PATH,
+                    "tls_cert_path": TLS_CERT_PATH,
                     "verify_tls_clients": self.model.config["verify-tls-clients"],
                     "map_tls_clients": self.model.config["map-tls-clients"],
-                    "tls_ca_cert_path": self.TLS_CA_CERT_PATH,
+                    "tls_ca_cert_path": TLS_CA_CERT_PATH,
                 }
             )
             self.client._set_tls_ca(
@@ -260,12 +260,13 @@ class NatsCharm(CharmBase):
         old_hash = self.state.nats_config_hash
         if old_hash != content_hash:
             logging.info(
-                f"Config has changed - re-rendering a template to {self.NATS_SERVER_CONFIG_PATH}"
+                f"Config has changed - re-rendering a template to {NATS_SERVER_CONFIG_PATH}"
             )
             self.state.nats_config_hash = content_hash
-            self.NATS_SERVER_CONFIG_PATH.write_text(rendered_content)
+            NATS_SERVER_CONFIG_PATH.write_text(rendered_content)
             if self.state.is_started:
-                subprocess.check_call(["systemctl", "restart", self.NATS_SERVICE])
+                nats_snap = self._snap[SNAP_NAME]
+                nats_snap.restart()
         self.client.expose_nats(auth_token=self.state.auth_token)
 
         client_port = self.model.config["client-port"]
@@ -292,7 +293,8 @@ class NatsCharm(CharmBase):
         return "".join([rng.choice(alphanumeric_chars) for _ in range(length)])
 
     def _on_start(self, _):
-        subprocess.check_call(["snap", "start", "nats", "--enable"])
+        nats_snap = self._snap[SNAP_NAME]
+        nats_snap.start(enable=True)
         self.state.is_started = True
         self.on.nats_started.emit()
         self.model.unit.status = ActiveStatus()
