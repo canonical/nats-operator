@@ -6,6 +6,7 @@ import logging
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.x509 import load_pem_x509_certificate
+from ops import JujuVersion
 from ops.framework import EventBase, EventSource, Object, ObjectEvents, StoredState
 
 logger = logging.getLogger(__name__)
@@ -109,12 +110,14 @@ class NatsClient(Object):
         relations = self.model.relations[self._relation_name]
         for rel in relations:
             token_field = ""
+            protocol = "nats"
+
             if auth_token is not None:
                 token_field = f"{auth_token}@"
-            if self.state.tls_ca is not None:
-                url = f"tls://{token_field}{self.listen_address}:{self._client_port}"
-            else:
-                url = f"nats://{token_field}{self.listen_address}:{self._client_port}"
+            if not self.state.tls_ca:
+                protocol = "tls"
+
+            url = f"{protocol}://{token_field}{self.listen_address}:{self._client_port}"
             rel.data[self.model.unit]["url"] = url
             if self.model.unit.is_leader() and self.state.tls_ca is not None:
                 rel.data[self.model.app]["ca_cert"] = self.state.tls_ca

@@ -7,6 +7,7 @@ from tests.integration.relation_tests.helpers import CHARM_NAME
 
 TLS_CA_CHARM_NAME = "easyrsa"
 
+
 async def test_deploy_tls(ops_test: OpsTest):
     charms = await ops_test.build_charms(".", TEST_APP_CHARM_PATH)
     async with ops_test.fast_forward():
