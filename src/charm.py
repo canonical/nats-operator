@@ -2,23 +2,20 @@
 
 """Charmed Machine Operator for the NATS."""
 
+from __future__ import annotations
+
 import hashlib
 import logging
 import random
 import socket
 import string
-import subprocess
 from pathlib import Path
 
-from lib.charms.operator_libs_linux.v2 import snap
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from cryptography.x509 import load_pem_x509_certificate
 from interfaces import CAClient, NatsClient, NatsCluster
-from jinja2 import Environment, FileSystemLoader
+from nats import NATS
 from nrpe.client import NRPEClient  # noqa: E402
-from ops import EventBase, EventSource, InstallEvent, StoredState
+from ops import EventBase, EventSource, HookEvent, InstallEvent, StoredState, JujuVersion
 from ops.charm import CharmBase, CharmEvents
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, ModelError, WaitingStatus
@@ -40,7 +37,7 @@ class NatsCharmEvents(CharmEvents):
 
 SNAP_COMMON_PATH = Path("/var/snap/nats/common")
 SERVER_PATH = SNAP_COMMON_PATH / "server"
-SNAP_NAME = 'nats'
+SNAP_NAME = "nats"
 NATS_SERVER_CONFIG_PATH = SERVER_PATH / "nats.cfg"
 AUTH_TOKEN_PATH = SERVER_PATH / "auth_secret"
 AUTH_TOKEN_LENGTH = 64
@@ -59,12 +56,7 @@ class NatsCharm(CharmBase):
         super().__init__(*args)
 
         self.state.set_default(
-            is_started=False,
             auth_token=NatsCharm.get_auth_token(AUTH_TOKEN_LENGTH),
-            use_tls=None,
-            use_tls_ca=None,
-            nats_config_hash=None,
-            client_port=None,
         )
 
         self.framework.observe(self.on.install, self._on_install)
@@ -79,8 +71,9 @@ class NatsCharm(CharmBase):
         self.client = NatsClient(
             self, "client", listen_on_all_addresses, self.model.config["client-port"]
         )
+        self._snap = NATS()
         self.framework.observe(self.on.client_relation_joined, self._reconfigure_nats)
-        self._snap = snap.SnapCache()
+
         self.ca_client = CAClient(self, "ca-client")
         self.framework.observe(self.ca_client.on.tls_config_ready, self._on_tls_config_ready)
         self.framework.observe(self.ca_client.on.ca_available, self._reconfigure_nats)
@@ -97,67 +90,10 @@ class NatsCharm(CharmBase):
             nats_res = self.model.resources.fetch("nats")
         except ModelError:
             nats_res = None
-
-        nats_snap = None
-
-        # Install the snaps from a resource if provided. Alternatively, snapd
-        # will attempt to download it automatically.
-        if core_res is not None and Path(core_res).stat().st_size:
-            snap.install_local(core_res, dangerous=True)
-        if nats_res is not None and Path(nats_res).stat().st_size:
-            nats_snap = snap.install_local(nats_res, dangerous=True)
-        else:
-            nats_snap = self._snap[SNAP_NAME]
-            if not nats_snap.present:
-                nats_snap.ensure(snap.SnapState.Latest, channel=self.model.config['snap-channel'])
-        nats_snap.stop(disable=True)
-        SERVER_PATH.mkdir(exist_ok=True, mode=0o0700)
-
-    def handle_tls_config(self):
-        """Handle TLS parameters passed via charm config.
-
-        Values are loaded and parsed to provide basic validation and then used to
-        determine whether to use TLS in a charm by or not. If TLS is to be used,
-        the TLS config content is written to the necessary files.
-        """
-        tls_key = self.model.config["tls-key"]
-        if tls_key:
-            load_pem_private_key(tls_key.encode("utf-8"), password=None, backend=default_backend())
-        tls_cert = self.model.config["tls-cert"]
-        if tls_cert:
-            load_pem_x509_certificate(tls_cert.encode("utf-8"), backend=default_backend())
-        tls_ca_cert = self.model.config["tls-ca-cert"]
-        if tls_ca_cert:
-            load_pem_x509_certificate(tls_ca_cert.encode("utf-8"), backend=default_backend())
-
-        self.state.use_tls = tls_key and tls_cert
-        self.state.use_tls_ca = bool(tls_ca_cert)
-
-        # Block if one of the values is specified but not the other.
-        if bool(tls_key) ^ bool(tls_cert):
-            self.status = BlockedStatus("both TLS key and TLS cert must be specified")
-        if self.state.use_tls:
-            TLS_KEY_PATH.write_text(tls_key)
-            TLS_CERT_PATH.write_text(tls_cert)
-            # A CA cert is optional because NATS may rely on system-trusted (core snap) CA certs.
-            if self.state.use_tls_ca:
-                TLS_CA_CERT_PATH.write_text(tls_ca_cert)
-                self.client._set_tls_ca(tls_ca_cert)
+        channel = self.model.config["snap-channel"]
+        self._snap.install(channel=channel, core_res=core_res, nats_res=nats_res)
 
     def _on_tls_config_ready(self, event):
-        TLS_KEY_PATH.write_bytes(
-            self.ca_client.key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.TraditionalOpenSSL,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
-        )
-        TLS_CERT_PATH.write_bytes(
-            self.ca_client.certificate.public_bytes(encoding=serialization.Encoding.PEM)
-        )
-        TLS_CA_CERT_PATH.write_bytes(
-            self.ca_client.ca_certificate.public_bytes(encoding=serialization.Encoding.PEM)
-        )
         self._reconfigure_nats(event)
 
     def _generate_content_hash(self, content):
@@ -166,9 +102,8 @@ class NatsCharm(CharmBase):
         return m.hexdigest()
 
     # FIXME: reduce this function's complexity to satisfy the linter
-    def _reconfigure_nats(self, event):  # noqa: C901
+    def _reconfigure_nats(self, event: HookEvent):  # noqa: C901
         logger.info("Reconfiguring NATS")
-        self.handle_tls_config()
         ctxt = {
             "client_port": self.model.config["client-port"],
             "cluster_port": self.model.config["cluster-port"],
@@ -180,64 +115,43 @@ class NatsCharm(CharmBase):
             "trace": self.model.config["trace"],
         }
 
-        # Config is used in priority to using a relation to a CA charm.
-        if self.state.use_tls:
-            ctxt.update(
-                {
-                    "use_tls": True,
-                    "tls_key_path": TLS_KEY_PATH,
-                    "tls_cert_path": TLS_CERT_PATH,
-                    "verify_tls_clients": self.model.config["verify-tls-clients"],
-                    "map_tls_clients": self.model.config["map-tls-clients"],
-                }
-            )
-            if self.state.use_tls_ca:
-                ctxt["tls_ca_cert_path"] = TLS_CA_CERT_PATH
-        elif self.ca_client.is_joined:
-            if not self.ca_client.is_ready:
-                # TODO: move SAN generation into a separate function
-                # Use a reverse resolution for bind-address of a cluster endpoint as a heuristic to
-                # determine a common name.
-                common_name = socket.getnameinfo(
-                    (str(self.cluster.listen_address), 0), socket.NI_NAMEREQD
-                )[0]
-                san_addresses = set()
-                san_addresses.add(str(self.cluster.listen_address))
-                san_addresses.add(str(self.cluster.ingress_address))
-                san_addresses.add(str(self.client.listen_address))
-                for addr in self.client.ingress_addresses:
-                    san_addresses.add(str(addr))
-                if self.model.config["listen-on-all-addresses"]:
-                    raise RuntimeError(
-                        "Generating certificates with listen-on-all-addresses option is not supported yet"
+        cert = self.model.config["tls-cert"]
+        key = self.model.config["tls-key"]
+        ca_cert = self.model.config["tls-ca-cert"]
+
+        if not (cert or key):
+            if self.ca_client.is_joined:
+                if not self.ca_client.is_ready:
+                    cn, sans = self._generate_cn_and_san()
+                    self.ca_client.request_server_certificate(cn, list(sans))
+                    self.model.unit.status = WaitingStatus(
+                        "Waiting for TLS configuration data from the CA client."
                     )
-                    # TODO: update with all host interface addresses to implement this for listen-on-all-addresses.
-                san_hostnames = set()
-                for addr in san_addresses:
-                    # May raise gaierror.
-                    name = socket.getnameinfo((str(addr), 0), socket.NI_NAMEREQD)[0]
-                    san_hostnames.add(name)
-                sans = san_addresses.union(san_hostnames)
-                self.ca_client.request_server_certificate(common_name, list(sans))
-                self.model.unit.status = WaitingStatus(
-                    "Waiting for TLS configuration data from the CA client."
-                )
-                return
-            ctxt.update(
-                {
-                    "use_tls": True,
-                    "tls_key_path": TLS_KEY_PATH,
-                    "tls_cert_path": TLS_CERT_PATH,
-                    "verify_tls_clients": self.model.config["verify-tls-clients"],
-                    "map_tls_clients": self.model.config["map-tls-clients"],
-                    "tls_ca_cert_path": TLS_CA_CERT_PATH,
-                }
-            )
-            self.client._set_tls_ca(
-                self.ca_client.ca_certificate.public_bytes(
-                    encoding=serialization.Encoding.PEM
-                ).decode("utf-8")
-            )
+                    return
+                else:
+                    key = self.ca_client.key.private_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PrivateFormat.TraditionalOpenSSL,
+                        encryption_algorithm=serialization.NoEncryption(),
+                    ).decode("utf-8")
+                    cert = self.ca_client.certificate.public_bytes(
+                        encoding=serialization.Encoding.PEM
+                    ).decode("utf-8")
+                    ca_cert = self.ca_client.ca_certificate.public_bytes(
+                        encoding=serialization.Encoding.PEM
+                    ).decode("utf-8")
+        ctxt.update(
+            {
+                "tls_key": key,
+                "tls_cert": cert,
+                "tls_ca_cert": ca_cert,
+                "verify_tls_clients": self.model.config["verify-tls-clients"],
+                "map_tls_clients": self.model.config["map-tls-clients"],
+            }
+        )
+
+        if ca_cert:
+            self.client._set_tls_ca(ca_cert)
 
         if self.nrpe_client.is_available:
             check_name = "check_{}".format(self.model.unit.name.replace("/", "_"))
@@ -253,35 +167,44 @@ class NatsCharm(CharmBase):
             )
             self.nrpe_client.commit()
 
-        tenv = Environment(loader=FileSystemLoader("templates"))
-        template = tenv.get_template("nats.cfg.j2")
-        rendered_content = template.render(ctxt)
-        content_hash = self._generate_content_hash(rendered_content)
-        old_hash = self.state.nats_config_hash
-        if old_hash != content_hash:
-            logging.info(
-                f"Config has changed - re-rendering a template to {NATS_SERVER_CONFIG_PATH}"
-            )
-            self.state.nats_config_hash = content_hash
-            NATS_SERVER_CONFIG_PATH.write_text(rendered_content)
-            if self.state.is_started:
-                nats_snap = self._snap[SNAP_NAME]
-                nats_snap.restart()
+        self._snap.configure(ctxt)
         self.client.expose_nats(auth_token=self.state.auth_token)
 
-        client_port = self.model.config["client-port"]
-        if (client_port is None or client_port == 0) and (
-            self.state.client_port is not None or len(self.state.client_port) > 0
-        ):
-            self._close_port(self.state.client_port)
-        else:
-            port = "{}/tcp".format(client_port)
-            if self.state.client_port is not None and port != self.state.client_port:
-                self._close_port(self.state.client_port)
-            self._open_port(port)
-            self.state.client_port = port
+        client_port = int(self.model.config["client-port"])
+        self.unit.set_ports(client_port)
+        logger.info(f"Opened port: {client_port} for access")
 
+        if not self._snap.running:
+            self.unit.status = BlockedStatus("failed to configure nats")
+            return
+
+        logger.info("NATS configuration complete")
         self.unit.status = ActiveStatus()
+
+    def _generate_cn_and_san(self) -> tuple[str, set[str]]:
+        # Use a reverse resolution for bind-address of a cluster endpoint as a heuristic to
+        # determine a common name.
+        common_name = socket.getnameinfo(
+            (str(self.cluster.listen_address), 0), socket.NI_NAMEREQD
+        )[0]
+        san_addresses = set()
+        san_addresses.add(str(self.cluster.listen_address))
+        san_addresses.add(str(self.cluster.ingress_address))
+        san_addresses.add(str(self.client.listen_address))
+        for addr in self.client.ingress_addresses:
+            san_addresses.add(str(addr))
+        if self.model.config["listen-on-all-addresses"]:
+            raise RuntimeError(
+                "Generating certificates with listen-on-all-addresses option is not supported yet"
+            )
+            # TODO: update with all host interface addresses to implement this for listen-on-all-addresses.
+        san_hostnames = set()
+        for addr in san_addresses:
+            # May raise gaierror.
+            name = socket.getnameinfo((str(addr), 0), socket.NI_NAMEREQD)[0]
+            san_hostnames.add(name)
+        sans = san_addresses.union(san_hostnames)
+        return common_name, sans
 
     @classmethod
     def get_auth_token(cls, length=None):
@@ -293,17 +216,10 @@ class NatsCharm(CharmBase):
         return "".join([rng.choice(alphanumeric_chars) for _ in range(length)])
 
     def _on_start(self, _):
-        nats_snap = self._snap[SNAP_NAME]
-        nats_snap.start(enable=True)
-        self.state.is_started = True
-        self.on.nats_started.emit()
+        self._snap.start()
+        if self._snap.running:
+            self.on.nats_started.emit()
         self.model.unit.status = ActiveStatus()
-
-    def _open_port(self, port):
-        subprocess.check_call(["open-port", port])
-
-    def _close_port(self, port):
-        subprocess.check_call(["close-port", port])
 
 
 if __name__ == "__main__":
