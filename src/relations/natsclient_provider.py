@@ -1,10 +1,11 @@
 """NATS Client Provider for `nats` interface."""
 import ipaddress
-
 import logging
-from ops import Object, StoredState
+
+from ops import JujuVersion, Object, SecretNotFoundError, StoredState
 
 logger = logging.getLogger(__name__)
+
 
 class NATSClientProvider(Object):
     """`nats` interface for the client to NATS."""
@@ -23,6 +24,8 @@ class NATSClientProvider(Object):
             self._listen_address = None
         self._ingress_addresses = None
         self.state.set_default(tls_ca=None)
+        if JujuVersion.from_environ().has_secrets:
+            self._secret_label = "nats-protected-url"
 
     @property
     def listen_address(self):
@@ -65,6 +68,19 @@ class NATSClientProvider(Object):
             rel.data[self.model.unit]["url"] = url
             if self.model.unit.is_leader() and self.state.tls_ca is not None:
                 rel.data[self.model.app]["ca_cert"] = self.state.tls_ca
+
+            # Use secrets only if juju > 3.0
+            # TODO: make this the only way to share url once all charms use the
+            # charm-lib and juju > 3.0
+            if JujuVersion.from_environ().has_secrets:
+                try:
+                    secret = self.model.get_secret(label=self._secret_label)
+                except SecretNotFoundError:
+                    logger.debug("Secret not found, creating a new one")
+                    secret = self.model.unit.add_secret(
+                        content={"url": url}, label=self._secret_label
+                    )
+                secret.grant(rel)
 
     @property
     def ingress_addresses(self):

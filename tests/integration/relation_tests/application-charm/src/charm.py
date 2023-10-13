@@ -27,19 +27,19 @@ class ApplicationCharm(ops.CharmBase):
         unit_data = event.relation.data.get(event.unit)
         if not unit_data:
             logger.error("data not found in relation")
-            self.unit.status = ops.BlockedStatus('waiting for relation data')
+            self.unit.status = ops.BlockedStatus("waiting for relation data")
             return
         url = unit_data.get("url")
         if not url:
             logger.error("url not found")
-            self.unit.status = ops.BlockedStatus('waiting for relation data')
+            self.unit.status = ops.BlockedStatus("waiting for relation data")
             return
         connect_opts = {}
         if url.startswith("tls"):
             cert = event.relation.data.get(event.app).get("ca_cert")
             if not cert:
                 logger.error("ca_cert not found")
-                self.unit.status = ops.BlockedStatus('waiting for relation data')
+                self.unit.status = ops.BlockedStatus("waiting for relation data")
                 return
             tls = ssl.create_default_context(cadata=cert)
             connect_opts.update({"tls": tls})
