@@ -14,7 +14,14 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from nats_config import NATS
 from nrpe.client import NRPEClient  # noqa: E402
-from ops import ConfigChangedEvent, EventBase, EventSource, InstallEvent, RelationJoinedEvent, StoredState
+from ops import (
+    ConfigChangedEvent,
+    EventBase,
+    EventSource,
+    InstallEvent,
+    RelationJoinedEvent,
+    StoredState,
+)
 from ops.charm import CharmBase, CharmEvents
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, ModelError
@@ -173,7 +180,6 @@ class NatsCharm(CharmBase):
 
         self.framework.breakpoint()
         if ctxt["tls_ca_cert"]:
-
             self.nats_client.set_tls_ca(ctxt["tls_ca_cert"])
 
         changed = self._snap.configure(ctxt)

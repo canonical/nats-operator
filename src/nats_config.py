@@ -192,7 +192,7 @@ class NATS:
             # Restart the snap service only if it was running already
             if restart:
                 self._snap.restart()
-        return (config_changed or use_tls)
+        return config_changed or use_tls
 
     def _generate_config(self, config: NATSConfig) -> str:
         tenv = Environment(loader=FileSystemLoader("templates"))

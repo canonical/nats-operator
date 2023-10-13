@@ -39,5 +39,7 @@ class NatsCluster(Object):
     def ingress_address(self):
         """Property to get the ingress address."""
         if not self._ingress_address:
-            self._ingress_address = self.model.get_binding(self._relation_name).network.ingress_address
+            self._ingress_address = self.model.get_binding(
+                self._relation_name
+            ).network.ingress_address
         return self._ingress_address
