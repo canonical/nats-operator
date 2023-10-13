@@ -70,7 +70,7 @@ class NATS:
             with open(self.CONFIG_PATH, "rb") as f:
                 config = f.read()
         except FileNotFoundError:
-            logger.warning("current configuration not found")
+            logger.debug("Current configuration not found, no previous hash generated")
             return ""
         return self._generate_content_hash(config.decode("utf-8"))
 
@@ -192,7 +192,7 @@ class NATS:
             # Restart the snap service only if it was running already
             if restart:
                 self._snap.restart()
-        return config_changed
+        return (config_changed or use_tls)
 
     def _generate_config(self, config: NATSConfig) -> str:
         tenv = Environment(loader=FileSystemLoader("templates"))

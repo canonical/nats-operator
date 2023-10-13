@@ -39,3 +39,10 @@ async def test_tls_enabled(ops_test: OpsTest):
         await ops_test.model.relate(f"{TLS_CA_CHARM_NAME}:client", f"{CHARM_NAME}:ca-client")
         await ops_test.model.relate(f"{APPLICATION_APP_NAME}:client", f"{CHARM_NAME}:client")
         await ops_test.model.wait_for_idle(apps=[*APP_NAMES, TLS_CA_CHARM_NAME], status="active")
+
+
+async def test_adding_unit_to_nats_cluster_works(ops_test: OpsTest):
+    async with ops_test.fast_forward():
+        nats_app = ops_test.model.applications[CHARM_NAME]
+        await nats_app.add_units(count=2)
+        await ops_test.model.wait_for_idle(apps=[*APP_NAMES, TLS_CA_CHARM_NAME], status="active")

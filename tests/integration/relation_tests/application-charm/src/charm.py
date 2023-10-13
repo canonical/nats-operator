@@ -26,14 +26,20 @@ class ApplicationCharm(ops.CharmBase):
     def _on_client_relation_changed(self, event):
         unit_data = event.relation.data.get(event.unit)
         if not unit_data:
+            logger.error("data not found in relation")
+            self.unit.status = ops.BlockedStatus('waiting for relation data')
             return
         url = unit_data.get("url")
         if not url:
+            logger.error("url not found")
+            self.unit.status = ops.BlockedStatus('waiting for relation data')
             return
         connect_opts = {}
         if url.startswith("tls"):
             cert = event.relation.data.get(event.app).get("ca_cert")
             if not cert:
+                logger.error("ca_cert not found")
+                self.unit.status = ops.BlockedStatus('waiting for relation data')
                 return
             tls = ssl.create_default_context(cadata=cert)
             connect_opts.update({"tls": tls})
@@ -46,8 +52,8 @@ class ApplicationCharm(ops.CharmBase):
                 assert len(client.servers) > 1, f"NATS not clustered: {client.servers}"
             channel_name = "test"
             message = b"testing"
-            sub = await client.subscribe("test")
-            await client.publish("test", b"testing")
+            sub = await client.subscribe(channel_name)
+            await client.publish(channel_name, message)
             msg = await sub.next_msg()
             assert (
                 msg.data == message

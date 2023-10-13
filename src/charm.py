@@ -12,13 +12,15 @@ import string
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
-from interfaces import CAClient, NatsClient, NatsCluster
-from nats import NATS
+from nats_config import NATS
 from nrpe.client import NRPEClient  # noqa: E402
-from ops import EventBase, EventSource, HookEvent, InstallEvent, StoredState, JujuVersion
+from ops import ConfigChangedEvent, EventBase, EventSource, InstallEvent, RelationJoinedEvent, StoredState
 from ops.charm import CharmBase, CharmEvents
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, ModelError, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, ModelError
+from relations.caclient_requirer import CAClientRequires
+from relations.cluster_peers import NatsCluster
+from relations.natsclient_provider import NATSClientProvider
 
 logger = logging.getLogger(__name__)
 
@@ -55,31 +57,35 @@ class NatsCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
+        self._snap = NATS()
+
         self.state.set_default(
             auth_token=NatsCharm.get_auth_token(AUTH_TOKEN_LENGTH),
         )
 
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
-        self.framework.observe(self.on.upgrade_charm, self._reconfigure_nats)
-        self.framework.observe(self.on.config_changed, self._reconfigure_nats)
+        self.framework.observe(self.on.upgrade_charm, self._on_config_changed)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
 
         listen_on_all_addresses = self.model.config["listen-on-all-addresses"]
         self.cluster = NatsCluster(self, "cluster", listen_on_all_addresses)
-        self.framework.observe(self.on.cluster_relation_changed, self._reconfigure_nats)
+        self.framework.observe(self.on.cluster_relation_changed, self._on_config_changed)
 
-        self.client = NatsClient(
+        self.nats_client = NATSClientProvider(
             self, "client", listen_on_all_addresses, self.model.config["client-port"]
         )
-        self._snap = NATS()
-        self.framework.observe(self.on.client_relation_joined, self._reconfigure_nats)
+        self.framework.observe(self.on.client_relation_joined, self._on_client_relation_joined)
 
-        self.ca_client = CAClient(self, "ca-client")
+        self.ca_client = CAClientRequires(self, "ca-client")
         self.framework.observe(self.ca_client.on.tls_config_ready, self._on_tls_config_ready)
-        self.framework.observe(self.ca_client.on.ca_available, self._reconfigure_nats)
+        self.framework.observe(self.ca_client.on.ca_available, self._on_ca_available)
 
         self.nrpe_client = NRPEClient(self, "nrpe-external-master")
-        self.framework.observe(self.nrpe_client.on.nrpe_available, self._reconfigure_nats)
+        self.framework.observe(self.nrpe_client.on.nrpe_available, self._on_nrpe_ready)
+
+    def _on_client_relation_joined(self, event: RelationJoinedEvent):
+        self.nats_client.expose_nats(auth_token=self.state.auth_token)
 
     def _on_install(self, event: InstallEvent):
         try:
@@ -93,73 +99,47 @@ class NatsCharm(CharmBase):
         channel = self.model.config["snap-channel"]
         self._snap.install(channel=channel, core_res=core_res, nats_res=nats_res)
 
+    def _on_config_changed(self, event: ConfigChangedEvent):
+        self._reconfigure_nats(self.model.config)
+
     def _on_tls_config_ready(self, event):
-        self._reconfigure_nats(event)
-
-    def _generate_content_hash(self, content):
-        m = hashlib.sha256()
-        m.update(content.encode("utf-8"))
-        return m.hexdigest()
-
-    # FIXME: reduce this function's complexity to satisfy the linter
-    def _reconfigure_nats(self, event: HookEvent):  # noqa: C901
-        logger.info("Reconfiguring NATS")
-        ctxt = {
-            "client_port": self.model.config["client-port"],
-            "cluster_port": self.model.config["cluster-port"],
-            "cluster_listen_address": self.cluster.listen_address,
-            "client_listen_address": self.client.listen_address,
-            "auth_token": self.state.auth_token,
-            "peer_addresses": self.cluster.peer_addresses,
-            "debug": self.model.config["debug"],
-            "trace": self.model.config["trace"],
-        }
-
-        cert = self.model.config["tls-cert"]
-        key = self.model.config["tls-key"]
-        ca_cert = self.model.config["tls-ca-cert"]
-
-        if not (cert or key):
-            if self.ca_client.is_joined:
-                if not self.ca_client.is_ready:
-                    cn, sans = self._generate_cn_and_san()
-                    self.ca_client.request_server_certificate(cn, list(sans))
-                    self.model.unit.status = WaitingStatus(
-                        "Waiting for TLS configuration data from the CA client."
-                    )
-                    return
-                else:
-                    key = self.ca_client.key.private_bytes(
-                        encoding=serialization.Encoding.PEM,
-                        format=serialization.PrivateFormat.TraditionalOpenSSL,
-                        encryption_algorithm=serialization.NoEncryption(),
-                    ).decode("utf-8")
-                    cert = self.ca_client.certificate.public_bytes(
-                        encoding=serialization.Encoding.PEM
-                    ).decode("utf-8")
-                    ca_cert = self.ca_client.ca_certificate.public_bytes(
-                        encoding=serialization.Encoding.PEM
-                    ).decode("utf-8")
-        ctxt.update(
-            {
-                "tls_key": key,
-                "tls_cert": cert,
-                "tls_ca_cert": ca_cert,
-                "verify_tls_clients": self.model.config["verify-tls-clients"],
-                "map_tls_clients": self.model.config["map-tls-clients"],
-            }
+        if self.config["tls-key"] and self.config["tls-cert"]:
+            logger.info(
+                "Not reconfiguring NATS with CA as model configuration \
+                        already has certificates"
+            )
+            return
+        current_config = dict(self.model.config)
+        logger.info("Configuring CA certificates from relation")
+        key = self.ca_client.key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode("utf-8")
+        cert = self.ca_client.certificate.public_bytes(encoding=serialization.Encoding.PEM).decode(
+            "utf-8"
         )
+        ca_cert = self.ca_client.ca_certificate.public_bytes(
+            encoding=serialization.Encoding.PEM
+        ).decode("utf-8")
+        # tls with CA's config
+        current_config["tls-cert"] = cert
+        current_config["tls-key"] = key
+        current_config["tls-ca-cert"] = ca_cert
+        self._reconfigure_nats(current_config)
 
-        if ca_cert:
-            self.client._set_tls_ca(ca_cert)
+    def _on_ca_available(self, event):
+        cn, sans = self._generate_cn_and_san()
+        self.ca_client.request_server_certificate(cn, list(sans))
 
+    def _on_nrpe_ready(self, event):
         if self.nrpe_client.is_available:
             check_name = "check_{}".format(self.model.unit.name.replace("/", "_"))
             self.nrpe_client.add_check(
                 command=[
                     "/usr/lib/nagios/plugins/check_tcp",
                     "-H",
-                    str(self.client.listen_address),
+                    str(self.nats_client.listen_address),
                     "-p",
                     str(self.model.config["client-port"]),
                 ],
@@ -167,8 +147,38 @@ class NatsCharm(CharmBase):
             )
             self.nrpe_client.commit()
 
-        self._snap.configure(ctxt)
-        self.client.expose_nats(auth_token=self.state.auth_token)
+    def _generate_content_hash(self, content):
+        m = hashlib.sha256()
+        m.update(content.encode("utf-8"))
+        return m.hexdigest()
+
+    # FIXME: reduce this function's complexity to satisfy the linter
+    def _reconfigure_nats(self, config):
+        logger.info("Reconfiguring NATS")
+        ctxt = {
+            "client_port": config["client-port"],
+            "cluster_port": config["cluster-port"],
+            "cluster_listen_address": self.cluster.listen_address,
+            "client_listen_address": self.nats_client.listen_address,
+            "auth_token": self.state.auth_token,
+            "peer_addresses": self.cluster.peer_addresses,
+            "debug": config["debug"],
+            "trace": config["trace"],
+            "tls_cert": config["tls-cert"],
+            "tls_key": config["tls-key"],
+            "tls_ca_cert": config["tls-ca-cert"],
+            "verify_tls_clients": config["verify-tls-clients"],
+            "map_tls_clients": config["map-tls-clients"],
+        }
+
+        self.framework.breakpoint()
+        if ctxt["tls_ca_cert"]:
+
+            self.nats_client.set_tls_ca(ctxt["tls_ca_cert"])
+
+        changed = self._snap.configure(ctxt)
+        if changed:
+            self.nats_client.expose_nats(auth_token=self.state.auth_token)
 
         client_port = int(self.model.config["client-port"])
         self.unit.set_ports(client_port)
@@ -190,8 +200,8 @@ class NatsCharm(CharmBase):
         san_addresses = set()
         san_addresses.add(str(self.cluster.listen_address))
         san_addresses.add(str(self.cluster.ingress_address))
-        san_addresses.add(str(self.client.listen_address))
-        for addr in self.client.ingress_addresses:
+        san_addresses.add(str(self.nats_client.listen_address))
+        for addr in self.nats_client.ingress_addresses:
             san_addresses.add(str(addr))
         if self.model.config["listen-on-all-addresses"]:
             raise RuntimeError(
