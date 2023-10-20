@@ -44,6 +44,9 @@ class ApplicationCharm(ops.CharmBase):
             tls = ssl.create_default_context(cadata=cert)
             connect_opts.update({"tls": tls})
 
+        # Since this charm individually relates to all the units, it verifies
+        # the connection to each unit individually using their listen addresses
+        # and check if each unit has the knowledge of cluster members as well.
         async def _verify_connection(url: str, opts: dict):
             client = await nats.connect(url, **opts)
             logger.info(f"connected to {url}")
