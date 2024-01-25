@@ -6,7 +6,7 @@ import logging
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.x509 import load_pem_x509_certificate
-from ops import EventBase, EventSource, Object, ObjectEvents, StoredState
+from ops import Application, EventBase, EventSource, Object, ObjectEvents, StoredState
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ class CAClientRequires(Object):
         self._relation_name = relation_name
         self._common_name = None
         self._sans = None
+        self._charm = charm
 
         self.state.set_default(ca_certificate=None, key=None, certificate=None)
 
@@ -70,23 +71,26 @@ class CAClientRequires(Object):
     @property
     def certificate(self):
         """Property to get the configured certificate."""
-        return load_pem_x509_certificate(
-            self.state.certificate.encode("utf-8"), backend=default_backend()
-        )
+        if self.state.certificate:
+            return load_pem_x509_certificate(
+                self.state.certificate.encode("utf-8"), backend=default_backend()
+            )
 
     @property
     def key(self):
         """Property to get the configured private key."""
-        return load_pem_private_key(
-            self.state.key.encode("utf-8"), password=None, backend=default_backend()
-        )
+        if self.state.key:
+            return load_pem_private_key(
+                self.state.key.encode("utf-8"), password=None, backend=default_backend()
+            )
 
     @property
     def ca_certificate(self):
         """Property to get the configured CA certificate."""
-        return load_pem_x509_certificate(
-            self.state.ca_certificate.encode("utf-8"), backend=default_backend()
-        )
+        if self.state.ca_certificate:
+            return load_pem_x509_certificate(
+                self.state.ca_certificate.encode("utf-8"), backend=default_backend()
+            )
 
     def _on_relation_joined(self, event):
         self.on.ca_available.emit()
@@ -107,20 +111,39 @@ class CAClientRequires(Object):
         rel_data["common_name"] = common_name
         rel_data["sans"] = json.dumps(sans)
 
+    def _get_certs(self, data: dict):
+        cert = data.get(f'{self.model.unit.name.replace("/", "_")}.server.cert')
+        key = data.get(f'{self.model.unit.name.replace("/", "_")}.server.key')
+        ca = data.get("ca")
+        return ca, key, cert
+
     def _on_relation_changed(self, event):
         # easy-rsa is not HA so there is only one unit to work with and Vault uses one leader unit to
         # write responses and does not (at the time of writing) rely on app relation data.
         remote_data = event.relation.data[event.unit]
+        self.state.ca_certificate, self.state.key, self.state.certificate = self._get_certs(
+            remote_data
+        )
 
-        cert = remote_data.get(f'{self.model.unit.name.replace("/", "_")}.server.cert')
-        key = remote_data.get(f'{self.model.unit.name.replace("/", "_")}.server.key')
-        ca = remote_data.get("ca")
-        if cert is None or key is None or ca is None:
+        if not (self.ca_certificate and self.key and self.certificate):
             logger.info(
                 "A CA has not yet exposed a requested certificate, key and CA certificate."
             )
             return
-        self.state.certificate = cert
-        self.state.key = key
-        self.state.ca_certificate = ca
         self.on.tls_config_ready.emit()
+
+    def restore_state(self):
+        """Restore certificate state from relation data after a restart."""
+        relation = self.model.get_relation(self._relation_name)
+        remote_unit = None
+        for member in relation.data.keys():
+            if not isinstance(member, Application) and member != self._charm.unit:
+                remote_unit = member
+                break
+        self.framework.breakpoint()
+        if remote_unit:
+            remote_data = relation.data[remote_unit]
+            self.state.ca_certificate, self.state.key, self.state.certificate = self._get_certs(
+                remote_data
+            )
+            logger.info("Restored certificate state")

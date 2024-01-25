@@ -8,9 +8,6 @@ description: |
 subordinate: false
 tags:
     - misc
-series:
-    - focal
-    - jammy
 provides:
       client:
           interface: nats

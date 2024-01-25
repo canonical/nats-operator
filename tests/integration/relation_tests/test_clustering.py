@@ -13,6 +13,7 @@ from tests.integration.relation_tests.helpers import CHARM_NAME
 
 
 @pytest.mark.skip_if_deployed
+@pytest.mark.abort_on_fail
 async def test_deploy_cluster(ops_test: OpsTest):
     charms = await ops_test.build_charms(".", TEST_APP_CHARM_PATH)
     async with ops_test.fast_forward():

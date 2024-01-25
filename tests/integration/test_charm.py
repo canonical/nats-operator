@@ -12,8 +12,11 @@ logger = logging.getLogger(__name__)
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = METADATA["name"]
 
+logging.basicConfig(level=logging.DEBUG)
+
 
 @pytest.mark.skip_if_deployed
+@pytest.mark.abort_on_fail
 async def test_smoke(ops_test: OpsTest):
     charm = await ops_test.build_charm(".", verbosity="debug")
     app = await ops_test.model.deploy(charm)

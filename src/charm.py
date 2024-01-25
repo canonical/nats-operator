@@ -22,10 +22,10 @@ from ops import (
     RelationJoinedEvent,
     StoredState,
 )
-from ops.charm import CharmBase, CharmEvents
+from ops.charm import CharmBase, CharmEvents, UpgradeCharmEvent
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, ModelError
-from relations.caclient_requirer import CAClientRequires
+from relations.caclient_requirer import CAClientRequires, TlsConfigReady
 from relations.cluster_peers import NatsCluster
 from relations.natsclient_provider import NATSClientProvider
 
@@ -72,7 +72,7 @@ class NatsCharm(CharmBase):
 
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
-        self.framework.observe(self.on.upgrade_charm, self._on_config_changed)
+        self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
 
         listen_on_all_addresses = self.model.config["listen-on-all-addresses"]
@@ -106,34 +106,42 @@ class NatsCharm(CharmBase):
         channel = self.model.config["snap-channel"]
         self._snap.install(channel=channel, core_res=core_res, nats_res=nats_res)
 
-    def _on_config_changed(self, event: ConfigChangedEvent):
-        self._reconfigure_nats(self.model.config)
+    def _on_upgrade_charm(self, event: UpgradeCharmEvent):
+        self.ca_client.restore_state()
 
-    def _on_tls_config_ready(self, event):
+    def _on_config_changed(self, event: ConfigChangedEvent):
+        config = dict(self.model.config)
+        if (
+            not (config["tls-cert"] or config["tls-key"] or config["tls-ca-cert"])
+            and self.ca_client.is_ready
+        ):
+            logger.info("Configuring CA certificates from relation")
+            key = self.ca_client.key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            ).decode("utf-8")
+            cert = self.ca_client.certificate.public_bytes(
+                encoding=serialization.Encoding.PEM
+            ).decode("utf-8")
+            ca_cert = self.ca_client.ca_certificate.public_bytes(
+                encoding=serialization.Encoding.PEM
+            ).decode("utf-8")
+            # tls with CA's config
+            config["tls-cert"] = cert
+            config["tls-key"] = key
+            config["tls-ca-cert"] = ca_cert
+
+        self._reconfigure_nats(config)
+
+    def _on_tls_config_ready(self, event: TlsConfigReady):
         if self.config["tls-key"] and self.config["tls-cert"]:
             logger.info(
                 "Not reconfiguring NATS with CA as model configuration \
                         already has certificates"
             )
             return
-        current_config = dict(self.model.config)
-        logger.info("Configuring CA certificates from relation")
-        key = self.ca_client.key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        ).decode("utf-8")
-        cert = self.ca_client.certificate.public_bytes(encoding=serialization.Encoding.PEM).decode(
-            "utf-8"
-        )
-        ca_cert = self.ca_client.ca_certificate.public_bytes(
-            encoding=serialization.Encoding.PEM
-        ).decode("utf-8")
-        # tls with CA's config
-        current_config["tls-cert"] = cert
-        current_config["tls-key"] = key
-        current_config["tls-ca-cert"] = ca_cert
-        self._reconfigure_nats(current_config)
+        self._on_config_changed(event)
 
     def _on_ca_available(self, event):
         cn, sans = self._generate_cn_and_san()
@@ -178,12 +186,17 @@ class NatsCharm(CharmBase):
             "map_tls_clients": config["map-tls-clients"],
         }
 
-        self.framework.breakpoint()
+        use_tls = NATS.setup_tls(
+            tls_key=ctxt["tls_key"],
+            tls_cert=ctxt["tls_cert"],
+            ca_cert=ctxt["tls_ca_cert"],
+        )
+
+        changed = self._snap.configure(ctxt)
         if ctxt["tls_ca_cert"]:
             self.nats_client.set_tls_ca(ctxt["tls_ca_cert"])
 
-        changed = self._snap.configure(ctxt)
-        if changed:
+        if changed or use_tls:
             self.nats_client.expose_nats(auth_token=self.state.auth_token)
 
         client_port = int(self.model.config["client-port"])
