@@ -11,6 +11,7 @@ TLS_CA_CHARM_NAME = "easyrsa"
 
 
 @pytest.mark.skip_if_deployed
+@pytest.mark.abort_on_fail
 async def test_deploy_tls(ops_test: OpsTest):
     charms = await ops_test.build_charms(".", TEST_APP_CHARM_PATH)
     async with ops_test.fast_forward():

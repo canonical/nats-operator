@@ -39,6 +39,16 @@ class NATSConfig:
     map_tls_clients: bool = False
     auth_token: str = field(default="", repr=False)
 
+    def __post_init__(self):
+        """Perform post initialization functions for the configuration."""
+        if (
+            self.tls_cert_path is not None
+            and self.tls_key_path is not None
+            and self.tls_cert_path.exists()
+            and self.tls_key_path.exists()
+        ):
+            self.use_tls = True
+
 
 class NATS:
     """Class representing NATS on a host system."""
@@ -125,7 +135,8 @@ class NATS:
         """Remove the NATS snap, preserving config and data."""
         self._snap.ensure(snap.SnapState.Absent)
 
-    def _setup_tls(self, tls_cert: str, tls_key: str, ca_cert: str | None = None) -> bool:
+    @classmethod
+    def setup_tls(cls, tls_cert: str, tls_key: str, ca_cert: str | None = None) -> bool:
         """Handle TLS parameters passed via charm config.
 
         Values are loaded and parsed to provide basic validation and then used to
@@ -140,32 +151,25 @@ class NATS:
         if not use_tls:
             return False
 
-        if tls_key:
+        if tls_key and tls_cert:
             load_pem_private_key(tls_key.encode("utf-8"), password=None, backend=default_backend())
-        if tls_cert:
             load_pem_x509_certificate(tls_cert.encode("utf-8"), backend=default_backend())
-        if ca_cert:
-            load_pem_x509_certificate(ca_cert.encode("utf-8"), backend=default_backend())
+            cls.TLS_KEY_PATH.write_text(tls_key)
+            cls.TLS_CERT_PATH.write_text(tls_cert)
+            logger.info("Wrote TLS certificates for NATS")
 
-        self.TLS_KEY_PATH.write_text(tls_key)
-        self.TLS_CERT_PATH.write_text(tls_cert)
         # A CA cert is optional because NATS may rely on system-trusted (core snap) CA certs.
         if ca_cert:
-            self.TLS_CA_CERT_PATH.write_text(ca_cert)
-            logger.debug("Created ca cert for nats")
+            load_pem_x509_certificate(ca_cert.encode("utf-8"), backend=default_backend())
+            cls.TLS_CA_CERT_PATH.write_text(ca_cert)
+            logger.debug("Wrote CA certificate for NATS")
         return True
 
     def configure(self, config: dict, restart: bool = True) -> bool:
         """Configure NATS on the host system. Restart NATS by default."""
         config_changed = False
-        use_tls = self._setup_tls(
-            tls_key=config["tls_key"],
-            tls_cert=config["tls_cert"],
-            ca_cert=config.get("tls_ca_cert"),
-        )
 
         cfg = NATSConfig(
-            use_tls=use_tls,
             tls_cert_path=self.TLS_CERT_PATH,
             tls_key_path=self.TLS_KEY_PATH,
             tls_ca_cert_path=self.TLS_CA_CERT_PATH,
@@ -192,7 +196,7 @@ class NATS:
             # Restart the snap service only if it was running already
             if restart:
                 self._snap.restart()
-        return config_changed or use_tls
+        return config_changed
 
     def _generate_config(self, config: NATSConfig) -> str:
         tenv = Environment(loader=FileSystemLoader("templates"))
