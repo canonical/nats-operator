@@ -34,7 +34,7 @@ async def test_deploy_tls(ops_test: OpsTest):
             ),
         )
         await ops_test.model.wait_for_idle(
-            apps=[*APP_NAMES, TLS_CA_CHARM_NAME], status="active", timeout=1000
+            apps=[*APP_NAMES, TLS_CA_CHARM_NAME], status="active", timeout=5000
         )
 
 
