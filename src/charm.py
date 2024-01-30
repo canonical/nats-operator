@@ -111,10 +111,7 @@ class NatsCharm(CharmBase):
 
     def _on_config_changed(self, event: ConfigChangedEvent):
         config = dict(self.model.config)
-        if (
-            not (config["tls-cert"] or config["tls-key"] or config["tls-ca-cert"])
-            and self.ca_client.is_ready
-        ):
+        if not (config["tls-cert"] and config["tls-key"]) and self.ca_client.is_ready:
             logger.info("Configuring CA certificates from relation")
             key = self.ca_client.key.private_bytes(
                 encoding=serialization.Encoding.PEM,

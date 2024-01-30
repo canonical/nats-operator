@@ -24,7 +24,10 @@ class ApplicationCharm(ops.CharmBase):
         self.unit.status = ops.ActiveStatus()
 
     def _on_client_relation_changed(self, event):
-        unit_data = event.relation.data.get(event.unit)
+        # FIXME: sometimes the remote unit i.e event.unit is empty when this
+        # hook is fired so we try to pick the first unit from the relation data
+        remote_unit = event.unit or event.relation.units.pop()
+        unit_data = event.relation.data.get(remote_unit)
         if not unit_data:
             logger.error("data not found in relation")
             self.unit.status = ops.BlockedStatus("waiting for relation data")
