@@ -51,6 +51,10 @@ class ApplicationCharm(ops.CharmBase):
         # the connection to each unit individually using their listen addresses
         # and check if each unit has the knowledge of cluster members as well.
         async def _verify_connection(url: str, opts: dict):
+            if url.startswith("tls") and opts.get("tls"):
+                raise Exception(
+                    f"tls connection required for: {url}, but no ceritificate available"
+                )
             client = await nats.connect(url, **opts)
             logger.info(f"connected to {url}")
             if self.config["check_clustering"]:
