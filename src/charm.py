@@ -92,6 +92,8 @@ class NatsCharm(CharmBase):
         self.framework.observe(self.nrpe_client.on.nrpe_available, self._on_nrpe_ready)
 
     def _on_client_relation_joined(self, event: RelationJoinedEvent):
+        if self.ca_client.is_joined and not self.ca_client.is_ready:
+            event.defer()
         self.nats_client.expose_nats(auth_token=self.state.auth_token)
 
     def _on_install(self, event: InstallEvent):

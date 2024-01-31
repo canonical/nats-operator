@@ -4,12 +4,11 @@ import pytest
 from helpers import (
     APP_NAMES,
     APPLICATION_APP_NAME,
+    CHARM_NAME,
     TEST_APP_CHARM_PATH,
     check_relation_data_existence,
 )
 from pytest_operator.plugin import OpsTest
-
-from tests.integration.relation_tests.helpers import CHARM_NAME
 
 
 @pytest.mark.skip_if_deployed

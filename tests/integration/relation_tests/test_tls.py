@@ -1,11 +1,9 @@
 import asyncio
 
 import pytest
-from helpers import APP_NAMES, APPLICATION_APP_NAME, TEST_APP_CHARM_PATH
+from helpers import APP_NAMES, APPLICATION_APP_NAME, CHARM_NAME, TEST_APP_CHARM_PATH
 from nrpe.client import logging
 from pytest_operator.plugin import OpsTest
-
-from tests.integration.relation_tests.helpers import CHARM_NAME
 
 TLS_CA_CHARM_NAME = "easyrsa"
 

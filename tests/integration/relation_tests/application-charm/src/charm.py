@@ -37,7 +37,7 @@ class ApplicationCharm(ops.CharmBase):
             logger.error("url not found")
             self.unit.status = ops.BlockedStatus("waiting for relation data")
             return
-        connect_opts = {}
+        connect_opts = {"allow_reconnect": False, "max_reconnect_attempts": 1}
         if url.startswith("tls"):
             cert = event.relation.data.get(event.app).get("ca_cert")
             if not cert:
@@ -51,11 +51,22 @@ class ApplicationCharm(ops.CharmBase):
         # the connection to each unit individually using their listen addresses
         # and check if each unit has the knowledge of cluster members as well.
         async def _verify_connection(url: str, opts: dict):
-            if url.startswith("tls") and opts.get("tls"):
-                raise Exception(
-                    f"tls connection required for: {url}, but no ceritificate available"
-                )
-            client = await nats.connect(url, **opts)
+            logger.info(f"connecting to {url}, with options {opts}")
+            try:
+                client = await nats.connect(url, **opts)
+            except ssl.SSLCertVerificationError:
+                # FIXME: This is added to ignore a timing issue where if TLS
+                # relation for the NATS charm and the Client relation are fired
+                # simultaneously, and the Client relation is formed first, then
+                # it will fail as by the time the connection attempt is made
+                # having no TLS data and to the non-TLS endponint, it
+                # might be the case that nats has reconfigured to expose only
+                # TLS. We need to ignore this as the next event which is received
+                # due to the reconfiguration will still test the TLS conn.
+                if url.startswith("nats://"):
+                    logger.warning("trying to connect without TLS failed as NATS is TLS Enabled")
+                    return
+                raise
             logger.info(f"connected to {url}")
             if self.config["check_clustering"]:
                 logger.info("checking for clustering")
