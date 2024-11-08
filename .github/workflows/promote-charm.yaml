@@ -1,0 +1,50 @@
+name: Promote Charms & Bundles
+
+on:
+  workflow_call:
+    secrets:
+      CHARMHUB_TOKEN:
+        required: true
+    inputs:
+      from-risk:
+        type: string
+        description: 'Charmhub channel risk to promote from'
+        default: ''
+      to-risk:
+        type: string
+        description: 'Charmhub channel risk to promote to'
+        default: ''
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  promote-charms-and-bundles:
+    environment: ${{ contains(inputs.to-risk, 'stable') && 'stable' || null }}
+    name: Promote charms
+    runs-on: [self-hosted, linux, X64, jammy, large]
+    steps:
+    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+    - name: Install dependencies
+      run: |
+        sudo apt install  -y zip
+        sudo snap install --classic --channel=latest/stable charmcraft
+        sudo snap install --channel=3/stable juju
+    - name: Promote charms
+      env:
+        CHARMCRAFT_AUTH: ${{ secrets.CHARMHUB_TOKEN }}
+      run: |
+        track=latest
+
+        for series in jammy ; do
+          ./scripts/promote-charms.sh \
+            --from="$track"/${{ inputs.from-risk }} \
+            --to="$track"/${{ inputs.to-risk }} \
+            --series=${series}
+        done
+
+        ./scripts/promote-bundles.sh \
+          --from="$track"/${{ inputs.from-risk }} \
+          --to="$track"/${{ inputs.to-risk }}
+

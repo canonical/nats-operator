@@ -1,0 +1,88 @@
+name: Publish Ops Charms
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  build-charms:
+    name: Build & Test
+    uses: ./.github/workflows/build-and-test.yaml
+    secrets: inherit
+    with:
+      scope: build-only
+
+  publish-to-edge:
+    name: Release to edge
+    runs-on: [self-hosted, linux, X64, jammy, large]
+    needs: [build-charms]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+      with:
+        fetch-depth: 0
+    - name: Install dependencies
+      run: |
+        sudo apt install  -y zip python3-ruamel.yaml
+        sudo snap install --classic --channel=latest/stable charmcraft
+        sudo snap install --channel=3/stable juju
+    - name: Select charmhub channel
+      id: channel
+      run: |
+        echo "channel=latest/edge" >> "$GITHUB_OUTPUT"
+    - name: Fetch charm artifacts
+      uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+      with:
+        pattern: 'nats-a[mr][dm]64'
+        path: "${{ github.workspace }}/charms"
+        merge-multiple: true
+    - name: Upload charms to charmhub
+      id: upload-charms
+      env:
+        CHARMCRAFT_AUTH: ${{ secrets.CHARMHUB_TOKEN }}
+      run: |
+        cd charms/
+        charm_channel="${{ steps.channel.outputs.channel }}"
+        for charm_file in *.charm; do
+          charm_file_name="$(basename ${charm_file} .charm)"
+          charm=(${charm_file_name//_/ })
+          extra_args=
+
+          resources="core nats"
+          [ ! -e zero-size-resource ] && touch zero-size-resource
+          for r in $resources ; do
+              output=$(charmcraft upload-resource "${charm[0]}" "$r" --format=json --filepath zero-size-resource)
+              rev=$(echo "$output" | jq .revision)
+              extra_args="$extra_args --resource $r:$rev"
+              echo "Published dummy resource ${r} with revision ${rev} for ${charm[0]} to channel $charm_channel"
+          done
+
+          echo "Publishing ${charm[0]} to channel $charm_channel"
+          # Build the final charm: we add a build_time file to ensure we produce a
+          # charm with a different checksum so we can upload the same tarball
+          # multiple times
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > build_time
+          zip -u "./${charm_file}" build_time
+
+          set +e
+          output="$(charmcraft upload --release "$charm_channel" --name "${charm[0]}" $extra_args "${charm_file}" 2>&1)"
+          if [ $? -ne 0 ] ; then
+              if ! echo "$output" | grep -q "An upload with that digest" ; then
+                  echo "ERROR: Failed to publish $charm: $output"
+                  exit 1
+              fi
+          fi
+          base=(${charm[1]//-/ })
+          set -e
+          rev="$(charmcraft status "${charm[0]}" --format=json | jq ".[].mappings[] | select(.base.channel == \"${base[1]}\" and .base.architecture == \"${base[2]}\") | .releases[] | select(.channel == \"$charm_channel\") | .revision")"
+          echo "Published charm: ${charm[0]}, revision: $rev"
+        done
+
