@@ -1,4 +1,5 @@
 """NATS Client Provider for `nats` interface."""
+
 import ipaddress
 import logging
 

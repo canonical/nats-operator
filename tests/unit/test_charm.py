@@ -3,10 +3,11 @@ from subprocess import CalledProcessError
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
-from charm import NatsCharm
 from OpenSSL import crypto
 from ops import ActiveStatus, BlockedStatus
 from ops.testing import Harness
+
+from charm import NatsCharm
 
 
 @pytest.fixture
