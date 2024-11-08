@@ -7,7 +7,7 @@ from tenacity import RetryError, Retrying, stop_after_attempt, wait_exponential
 
 APPLICATION_APP_NAME = "nats-tester"
 TEST_APP_CHARM_PATH = "tests/integration/relation_tests/application-charm"
-CHARM_NAME = yaml.safe_load(Path("metadata.yaml").read_text())["name"]
+CHARM_NAME = yaml.safe_load(Path("charmcraft.yaml").read_text())["name"]
 APP_NAMES = [APPLICATION_APP_NAME, CHARM_NAME]
 
 
