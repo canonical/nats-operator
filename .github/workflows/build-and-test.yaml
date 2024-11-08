@@ -135,11 +135,9 @@ jobs:
           juju-channel: "${{ env.JUJU_CHANNEL }}"
           bootstrap-options: "--agent-version ${{ matrix.agent-versions }}"
       - name: Run integration tests
-        env:
-          UBUNTU_PRO_TOKEN: ${{ secrets.UBUNTU_PRO_TOKEN }}
         run: |
           if [ "${{ matrix.arch.arch }}" == "arm64" ]; then
             args+="--constraints arch=arm64"
           fi
-          tox -e integration-${{ env.libjuju }}
+          ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
 
