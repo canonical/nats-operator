@@ -1,4 +1,5 @@
 """NATS Cluster Endpoint handler."""
+
 import ipaddress
 
 from ops.framework import Object

@@ -12,7 +12,6 @@ import string
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
-from nats_config import NATS
 from nrpe.client import NRPEClient  # noqa: E402
 from ops import (
     ConfigChangedEvent,
@@ -25,6 +24,8 @@ from ops import (
 from ops.charm import CharmBase, CharmEvents, UpgradeCharmEvent
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, ModelError
+
+from nats_config import NATS
 from relations.caclient_requirer import CAClientRequires, TlsConfigReady
 from relations.cluster_peers import NatsCluster
 from relations.natsclient_provider import NATSClientProvider
