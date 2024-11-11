@@ -110,9 +110,9 @@ jobs:
       fail-fast: false
       max-parallel: 6
       matrix:
-        agent-versions:
-          - "3.2.2"  # renovate: latest juju 3
-          - "2.9.44"  # renovate: latest juju 2
+        juju-version:
+          - "3.5"  # renovate: latest juju 3
+          - "2.9"  # renovate: latest juju 2
         arch: ${{ fromJSON(needs.collect-bases.outputs.bases) }}
     runs-on: ["self-hosted", "linux", "${{ matrix.arch.arch == 'amd64' && 'X64' || 'ARM64' }}", "jammy", "large"]
     steps:
@@ -125,15 +125,14 @@ jobs:
           name: ${{ matrix.arch.name }}-charm-${{ matrix.arch.arch }}
       - name: Set channel
         run: |
-          juju_channel=$(echo "${{ matrix.agent-versions }}" | cut -c 1-3)
+          juju_channel=$(echo "${{ matrix.juju-version }}" | cut -c 1-3)
           echo "JUJU_CHANNEL=${juju_channel}/stable" >> "$GITHUB_ENV"
-          echo "JUJU_VERSION=${{ matrix.agent-versions }}" >> "$GITHUB_ENV"
+          echo "JUJU_VERSION=${{ matrix.juju-version }}" >> "$GITHUB_ENV"
       - name: Setup operator environment
         uses: charmed-kubernetes/actions-operator@main
         with:
           provider: lxd
           juju-channel: "${{ env.JUJU_CHANNEL }}"
-          bootstrap-options: "--agent-version ${{ matrix.agent-versions }}"
       - name: Run integration tests
         run: |
           if [ "${{ matrix.arch.arch }}" == "arm64" ]; then

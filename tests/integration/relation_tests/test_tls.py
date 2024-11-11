@@ -62,7 +62,7 @@ async def test_secrets(ops_test: OpsTest):
     if hasattr(ops_test.model, "list_secrets"):
         logging.info("checking for secrets")
         secrets = await ops_test.model.list_secrets()
-        assert len(secrets.results) > 0, "secrets not found"
+        assert len(secrets) > 0, "secrets not found"
     else:
         pytest.skip("secrets not supported for juju < 3.0")
 
