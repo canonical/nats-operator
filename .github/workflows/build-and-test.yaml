@@ -1,4 +1,4 @@
-name: Build & Test Ops Charms
+name: Build & Test
 
 on:
   workflow_dispatch:

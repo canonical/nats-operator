@@ -1,6 +1,5 @@
 #!/bin/bash -e
 #
-# Anbox - The Android in a Box runtime environment
 # Copyright 2024 Canonical Ltd.  All rights reserved.
 #
 

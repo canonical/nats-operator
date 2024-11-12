@@ -1,3 +1,6 @@
+#
+# Copyright 2024 Canonical Ltd.  All rights reserved.
+#
 from pathlib import Path
 from subprocess import CalledProcessError
 from unittest.mock import MagicMock, PropertyMock, patch

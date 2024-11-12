@@ -1,4 +1,7 @@
 #!/bin/bash -e
+#
+# Copyright 2024 Canonical Ltd.  All rights reserved.
+#
 
 juju_major=$(echo "${JUJU_VERSION}" | cut -c 1)
 tox -e "integration-juju${juju_major}" -- "$@"

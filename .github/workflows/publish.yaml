@@ -1,4 +1,4 @@
-name: Publish Ops Charms
+name: Publish Charms
 
 on:
   push:

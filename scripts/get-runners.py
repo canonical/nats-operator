@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 #
-# Anbox - The Android in a Box runtime environment
 # Copyright 2024 Canonical Ltd.  All rights reserved.
 #
 

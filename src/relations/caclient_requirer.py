@@ -1,3 +1,6 @@
+#
+# Copyright 2024 Canonical Ltd.  All rights reserved.
+#
 """CA Client Relation Requirer."""
 
 import json
