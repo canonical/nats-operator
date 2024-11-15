@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Install dependencies
         run: python3 -m pip install tox
       - name: Run linters
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - name: Assign charm artifacts to runners
       id: charm-to-runner
       run: |
@@ -60,12 +60,12 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Install charmcraft
         run: sudo snap install --classic --channel=latest/stable charmcraft
       - name: Cache Deps
         id: cache-charm-deps
-        uses: actions/cache@3624ceb22c1c5a301c8db4169662070a689d9ea8 # v4
+        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4
         with:
           path: ${{ env.PIP_CACHE_DIR }}/**
           key: charm-deps-${{ matrix.arch.arch }}-${{ hashFiles('**/requirements.txt') }}
@@ -117,7 +117,7 @@ jobs:
     runs-on: ["self-hosted", "linux", "${{ matrix.arch.arch == 'amd64' && 'X64' || 'ARM64' }}", "jammy", "large"]
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Download packed charm(s)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
         id: downloaded-charm
