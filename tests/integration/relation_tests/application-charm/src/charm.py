@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+#
+# Copyright 2024 Canonical Ltd.  All rights reserved.
+#
 
 import asyncio
 import logging

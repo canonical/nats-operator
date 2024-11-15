@@ -1,4 +1,7 @@
 # See LICENSE file for licensing details.
+#
+# Copyright 2024 Canonical Ltd.  All rights reserved.
+#
 
 """Control NATS on a host system. Provides a NATS class."""
 

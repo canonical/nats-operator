@@ -1,3 +1,6 @@
+#
+# Copyright 2024 Canonical Ltd.  All rights reserved.
+#
 """NATS Client Provider for `nats` interface."""
 
 import ipaddress

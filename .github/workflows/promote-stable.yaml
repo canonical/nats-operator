@@ -1,0 +1,17 @@
+name: Promote new set of stable charms and bundles
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  promote-candidate:
+    uses: ./.github/workflows/promote-charms.yaml
+    with:
+      from-risk: candidate
+      to-risk: stable
+    secrets:
+      CHARMHUB_TOKEN: ${{ secrets.CHARMHUB_TOKEN }}
+
