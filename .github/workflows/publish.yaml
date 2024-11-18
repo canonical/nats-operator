@@ -41,7 +41,7 @@ jobs:
     - name: Fetch charm artifacts
       uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
       with:
-        pattern: 'nats-a[mr][dm]64'
+        pattern: 'nats-operator-charm-a[mr][dm]64'
         path: "${{ github.workspace }}/charms"
         merge-multiple: true
     - name: Upload charms to charmhub
