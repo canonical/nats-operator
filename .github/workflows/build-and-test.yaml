@@ -65,7 +65,7 @@ jobs:
         run: sudo snap install --classic --channel=latest/stable charmcraft
       - name: Cache Deps
         id: cache-charm-deps
-        uses: actions/cache@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
         with:
           path: ${{ env.PIP_CACHE_DIR }}/**
           key: charm-deps-${{ matrix.arch.arch }}-${{ hashFiles('**/requirements.txt') }}
