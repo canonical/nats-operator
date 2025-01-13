@@ -84,13 +84,13 @@ jobs:
             sudo chown -R $(whoami) ${PIP_CACHE_DIR}
       - name: Upload charmcraft logs
         if: failure()
-        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
         with:
           name: logs-charmcraft-build-base-${{ matrix.arch.name }}-${{ matrix.arch.base }}
           path: ~/.local/state/charmcraft/log/
           if-no-files-found: error
       - name: Upload charm package
-        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
         with:
           name: ${{ matrix.arch.name }}-charm-${{ matrix.arch.arch }}
           # .empty file required to preserve directory structure
