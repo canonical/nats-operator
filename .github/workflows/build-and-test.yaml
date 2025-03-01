@@ -65,7 +65,7 @@ jobs:
         run: sudo snap install --classic --channel=latest/stable charmcraft
       - name: Cache Deps
         id: cache-charm-deps
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{ env.PIP_CACHE_DIR }}/**
           key: charm-deps-${{ matrix.arch.arch }}-${{ hashFiles('**/requirements.txt') }}
@@ -84,13 +84,13 @@ jobs:
             sudo chown -R $(whoami) ${PIP_CACHE_DIR}
       - name: Upload charmcraft logs
         if: failure()
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: logs-charmcraft-build-base-${{ matrix.arch.name }}-${{ matrix.arch.base }}
           path: ~/.local/state/charmcraft/log/
           if-no-files-found: error
       - name: Upload charm package
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: ${{ matrix.arch.name }}-charm-${{ matrix.arch.arch }}
           # .empty file required to preserve directory structure
@@ -119,7 +119,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Download packed charm(s)
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         id: downloaded-charm
         with:
           name: ${{ matrix.arch.name }}-charm-${{ matrix.arch.arch }}
