@@ -31,8 +31,8 @@ jobs:
       - name: Run tests
         run: tox -e unit
 
-  collect-bases:
-    name: Collect bases for charm
+  collect-platforms:
+    name: Collect supported platforms for charm
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -43,20 +43,20 @@ jobs:
         # Reverse lookup for artifact base index to its architecture
         ./scripts/get-runners.py
     outputs:
-      bases: ${{ steps.charm-to-runner.outputs.bases }}
+      platforms: ${{ steps.charm-to-runner.outputs.platforms }}
 
   build:
-    name: 'Build ${{ matrix.arch.name }}-${{ matrix.arch.arch }}'
+    name: 'Build ${{ matrix.platform.charm_name }}-${{ matrix.platform.version }}-${{ matrix.platform.arch }}'
     strategy:
       fail-fast: false
       matrix:
-        arch: ${{ fromJSON(needs.collect-bases.outputs.bases) }}
+        platform: ${{ fromJSON(needs.collect-platforms.outputs.platforms) }}
     needs:
-      - collect-bases
+      - collect-platforms
       - static-and-unit-tests
     env:
       PIP_CACHE_DIR: /tmp/cache/pip
-    runs-on: ["self-hosted", "linux", "${{ matrix.arch.arch == 'amd64' && 'X64' || 'ARM64' }}", "jammy", "large"]
+    runs-on: ["self-hosted", "linux", "${{ matrix.platform.arch == 'amd64' && 'X64' || 'ARM64' }}", "${{ matrix.platform.version == '22.04' && 'jammy' || 'noble' }}", "large"]
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -68,7 +68,7 @@ jobs:
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{ env.PIP_CACHE_DIR }}/**
-          key: charm-deps-${{ matrix.arch.arch }}-${{ hashFiles('**/requirements.txt') }}
+          key: charm-deps-${{ matrix.platform.arch }}-${{ hashFiles('**/requirements.txt') }}
       - name: Build charm
         id: build_charm
         run: |
@@ -78,7 +78,11 @@ jobs:
               sudo chown root ${PIP_CACHE_DIR}
             fi
             sudo pip config set global.cache-dir ${PIP_CACHE_DIR}
-            sudo charmcraft pack --destructive-mode --verbose
+
+            platform=ubuntu@${{ matrix.platform.version }}:${{ matrix.platform.arch }}
+            sudo charmcraft pack --platform="$platform" \
+                    --destructive-mode \
+                    --verbose
             # Make the created cache dir accessible by user to enable it to be
             # cached later on
             sudo chown -R $(whoami) ${PIP_CACHE_DIR}
@@ -86,13 +90,13 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
-          name: logs-charmcraft-build-base-${{ matrix.arch.name }}-${{ matrix.arch.base }}
+          name: logs-charmcraft-build-base-${{ matrix.platform.charm_name }}-${{ matrix.platform.version }}-${{ matrix.platform.arch }}
           path: ~/.local/state/charmcraft/log/
           if-no-files-found: error
       - name: Upload charm package
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
-          name: ${{ matrix.arch.name }}-charm-${{ matrix.arch.arch }}
+          name: ${{ matrix.platform.charm_name }}-charm-${{ matrix.platform.version }}-${{ matrix.platform.arch }}
           # .empty file required to preserve directory structure
           # See https://github.com/actions/upload-artifact/issues/344#issuecomment-1379232156
           path: |
@@ -104,7 +108,7 @@ jobs:
     if: inputs.scope != 'build-only'
     needs:
       - static-and-unit-tests
-      - collect-bases
+      - collect-platforms
       - build
     strategy:
       fail-fast: false
@@ -113,8 +117,8 @@ jobs:
         juju-version:
           - "3.5"  # renovate: latest juju 3
           - "2.9"  # renovate: latest juju 2
-        arch: ${{ fromJSON(needs.collect-bases.outputs.bases) }}
-    runs-on: ["self-hosted", "linux", "${{ matrix.arch.arch == 'amd64' && 'X64' || 'ARM64' }}", "jammy", "large"]
+        platform: ${{ fromJSON(needs.collect-platforms.outputs.platforms) }}
+    runs-on: ["self-hosted", "linux", "${{ matrix.platform.arch == 'amd64' && 'X64' || 'ARM64' }}", "${{ matrix.platform.version == '22.04' && 'jammy' || 'noble' }}", "large"]
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -122,7 +126,7 @@ jobs:
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
         id: downloaded-charm
         with:
-          name: ${{ matrix.arch.name }}-charm-${{ matrix.arch.arch }}
+          name: ${{ matrix.platform.charm_name }}-charm-${{ matrix.platform.version }}-${{ matrix.platform.arch }}
       - name: Set channel
         run: |
           juju_channel=$(echo "${{ matrix.juju-version }}" | cut -c 1-3)
@@ -135,7 +139,12 @@ jobs:
           juju-channel: "${{ env.JUJU_CHANNEL }}"
       - name: Run integration tests
         run: |
-          if [ "${{ matrix.arch.arch }}" == "arm64" ]; then
+          # Only run integration test on jammy until we have all nats-operator charms supported running on noble and published to the store.
+          if [ "${{ matrix.platform.version }}" == "24.04" ]; then
+            echo "Disable integration test on noble until nats-operator charms supported running on noble and published to the store."
+            exit 0
+          fi
+          if [ "${{ matrix.platform.arch }}" == "arm64" ]; then
             args+="--constraints arch=arm64"
           fi
           ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
