@@ -21,26 +21,22 @@ def main() -> int:
     with open("charmcraft.yaml", "r") as f:
         charmcraft_cfg = yaml.safe_load(f)
     data = []
-    for arch in SUPPORTED_ARCHITECTURES:
+    for platform in charmcraft_cfg.get("platforms", {}):
+        distro, arch = platform.split(":")
+        version = distro.split("@")[-1]
+        if arch not in SUPPORTED_ARCHITECTURES:
+            raise ValueError(f"Unsupported architecture: {arch}")
         data.append(
             {
-                "bases": [],
+                "version": version,
                 "arch": arch,
-                "name": charm_name,
+                "charm_name": charm_name,
             }
         )
 
-    for base_idx, base in enumerate(charmcraft_cfg["bases"]):
-        for arch in base["architectures"]:
-            if arch not in SUPPORTED_ARCHITECTURES:
-                raise ValueError(f"Base {base_idx} architecture: {arch} is not supported")
-            for runner in data:
-                if runner["arch"] == arch:
-                    runner["bases"].append(base_idx)
-
-    logging.info(f"bases: {data}")
+    logging.info(f"platforms: {data}")
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-        f.write(f"bases={json.dumps(data)}")
+        f.write(f"platforms={json.dumps(data)}")
     return 0
 
 
