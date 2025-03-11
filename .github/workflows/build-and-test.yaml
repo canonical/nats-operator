@@ -55,37 +55,33 @@ jobs:
       - collect-platforms
       - static-and-unit-tests
     env:
-      PIP_CACHE_DIR: /tmp/cache/pip
-    runs-on: ["self-hosted", "linux", "${{ matrix.platform.arch == 'amd64' && 'X64' || 'ARM64' }}", "${{ matrix.platform.version == '22.04' && 'jammy' || 'noble' }}", "large"]
+      CRAFT_SHARED_CACHE: /tmp/charmcraft
+    runs-on: ["self-hosted", "linux", "${{ matrix.platform.arch == 'amd64' && 'X64' || 'ARM64' }}", "jammy", "large"]
     timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Setup LXD
+        uses: canonical/setup-lxd@54a5806e490d92e207b57183cf111ed54bbdeff4 # v0.1.2
+        with:
+          channel: 5.21/stable
       - name: Install charmcraft
         run: sudo snap install --classic --channel=latest/stable charmcraft
       - name: Cache Deps
         id: cache-charm-deps
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
-          path: ${{ env.PIP_CACHE_DIR }}/**
+          path: ${{ env.CRAFT_SHARED_CACHE }}/**
           key: charm-deps-${{ matrix.platform.arch }}-${{ hashFiles('**/requirements.txt') }}
       - name: Build charm
         id: build_charm
         run: |
-            # Make the restored cache dir accessible by root as we run
-            # charmcraft using sudo in order to use destructive-mode
-            if [ -d ${PIP_CACHE_DIR} ]; then
-              sudo chown root ${PIP_CACHE_DIR}
-            fi
-            sudo pip config set global.cache-dir ${PIP_CACHE_DIR}
-
             platform=ubuntu@${{ matrix.platform.version }}:${{ matrix.platform.arch }}
-            sudo charmcraft pack --platform="$platform" \
-                    --destructive-mode \
+            charmcraft pack --platform="$platform" \
                     --verbose
             # Make the created cache dir accessible by user to enable it to be
             # cached later on
-            sudo chown -R $(whoami) ${PIP_CACHE_DIR}
+            sudo chown -R $(whoami) ${CRAFT_SHARED_CACHE}
       - name: Upload charmcraft logs
         if: failure()
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
