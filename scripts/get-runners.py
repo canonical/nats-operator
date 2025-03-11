@@ -7,6 +7,7 @@ import os
 import yaml
 import json
 import logging
+from collections import defaultdict
 
 SUPPORTED_ARCHITECTURES = ("arm64", "amd64")
 
@@ -20,23 +21,21 @@ def main() -> int:
     charm_name = os.getcwd().split("/")[-1]
     with open("charmcraft.yaml", "r") as f:
         charmcraft_cfg = yaml.safe_load(f)
-    data = []
+    data = defaultdict(lambda: {"versions": [], "arch": "", "charm_name": charm_name})
     for platform in charmcraft_cfg.get("platforms", {}):
         distro, arch = platform.split(":")
         version = distro.split("@")[-1]
         if arch not in SUPPORTED_ARCHITECTURES:
             raise ValueError(f"Unsupported architecture: {arch}")
-        data.append(
-            {
-                "version": version,
-                "arch": arch,
-                "charm_name": charm_name,
-            }
-        )
 
-    logging.info(f"platforms: {data}")
+        if version not in data[arch]["versions"]:
+            data[arch]["versions"].append(version)
+        data[arch]["arch"] = arch
+
+    result = list(data.values())
+    logging.info(f"platforms: {result}")
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-        f.write(f"platforms={json.dumps(data)}")
+        f.write(f"platforms={json.dumps(result)}")
     return 0
 
 
