@@ -37,14 +37,10 @@ jobs:
       run: |
         track=latest
 
-        for series in jammy ; do
+        for series in jammy noble ; do
           ./scripts/promote-charms.sh \
             --from="$track"/${{ inputs.from-risk }} \
             --to="$track"/${{ inputs.to-risk }} \
             --series=${series}
         done
-
-        ./scripts/promote-bundles.sh \
-          --from="$track"/${{ inputs.from-risk }} \
-          --to="$track"/${{ inputs.to-risk }}
 
