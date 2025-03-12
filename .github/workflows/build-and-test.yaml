@@ -16,6 +16,10 @@ on:
         type: string
         description: 'Scope the workflow should run with. Allowed values are: all, build-only'
         default: 'all'
+      cache:
+        description: Whether to use cache for faster builds
+        default: false
+        type: boolean
 
 jobs:
   static-and-unit-tests:
@@ -65,8 +69,11 @@ jobs:
         uses: canonical/setup-lxd@54a5806e490d92e207b57183cf111ed54bbdeff4 # v0.1.2
         with:
           channel: 5.21/stable
-      - name: Install charmcraft
-        run: sudo snap install --classic --channel=latest/stable charmcraft
+      - name: Install charmcraft and charmcraftcache
+        run: |
+          sudo snap install --classic --channel=latest/stable charmcraft
+          sudo apt install -y pipx
+          pipx install charmcraftcache==0.6.3
       - name: Cache Deps
         id: cache-charm-deps
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
@@ -80,9 +87,13 @@ jobs:
         run: |
           for version in $VERSIONS ; do
             platform=ubuntu@${version}:${{ matrix.platform.arch }}
-            charmcraft pack \
-                  --platform="$platform" \
-                  --verbose
+            cmd=charmcraft
+            if '${{ inputs.cache }}' ; then
+              cmd=charmcraftcache
+            fi
+              "$cmd" pack \
+              --platform="$platform" \
+              --verbose
           done
           # Make the created cache dir accessible by user to enable it to be
           # cached later on
