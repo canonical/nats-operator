@@ -13,6 +13,7 @@ OLD_CHARM_NAME = "nats-charmers-nats"
 
 @pytest.mark.skip_if_deployed
 @pytest.mark.abort_on_fail
+@pytest.mark.skip_upgrade_on_noble
 async def test_deploy_old(ops_test: OpsTest, constraints, charm_name):
     if constraints:
         await ops_test.model.set_constraints(constraints)
@@ -50,6 +51,7 @@ async def test_deploy_old(ops_test: OpsTest, constraints, charm_name):
         )
 
 
+@pytest.mark.skip_upgrade_on_noble
 async def test_upgrade_switch(
     ops_test: OpsTest,
     charm_path,
