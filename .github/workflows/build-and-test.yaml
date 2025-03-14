@@ -150,19 +150,9 @@ jobs:
           provider: lxd
           juju-channel: "${{ env.JUJU_CHANNEL }}"
       - name: Run integration tests
-        env:
-          VERSIONS: ${{ join(matrix.platform.versions, ' ') }}
         run: |
-          # Only run integration test on jammy until we have all nats-operator charms supported running on noble and published to the store.
-          # versions="${{ join(matrix.platform.versions, ' ') }}"
-          for version in $VERSIONS ; do
-            if [ "${version}" == "24.04" ]; then
-              echo "Disable integration test on noble until nats-operator charms supported running on noble and published to the store."
-              exit 0
-            fi
-            if [ "${{ matrix.platform.arch }}" == "arm64" ]; then
-              args+="--constraints arch=arm64"
-            fi
-            ls *22.04*.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
-          done
+          if [ "${{ matrix.platform.arch }}" == "arm64" ]; then
+            args+="--constraints arch=arm64"
+          fi
+          ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
 
