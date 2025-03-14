@@ -36,13 +36,11 @@ resources:
     filename: nats.snap
     description: NATS snap to install
 
-bases:
-- name: "ubuntu"
-  channel: "22.04"
-  architectures: [arm64]
-- name: "ubuntu"
-  channel: "22.04"
-  architectures: [amd64]
+platforms:
+  ubuntu@22.04:amd64:
+  ubuntu@22.04:arm64:
+  ubuntu@24.04:amd64:
+  ubuntu@24.04:arm64:
 parts:
   charm:
     charm-requirements: ["requirements.txt"]

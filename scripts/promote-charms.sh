@@ -49,6 +49,9 @@ case "$series" in
   jammy)
     base=22.04
     ;;
+  noble)
+    base=24.04
+    ;;
   *)
     echo "ERROR: Unsupported series $series"
     exit 1

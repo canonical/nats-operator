@@ -41,7 +41,7 @@ jobs:
     - name: Fetch charm artifacts
       uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
       with:
-        pattern: 'nats-operator-charm-a[mr][dm]64'
+        pattern: 'nats-operator-charm-*-a[mr][dm]64'
         path: "${{ github.workspace }}/charms"
         merge-multiple: true
     - name: Upload charms to charmhub
@@ -82,7 +82,20 @@ jobs:
           fi
           base=(${charm[1]//-/ })
           set -e
+          case "${base[1]}" in
+            22.04)
+              series="jammy"
+              ;;
+            24.04)
+              series="noble"
+              ;;
+            *)
+              echo "ERROR: Unsupported Ubuntu series: ${base[1]}"
+              exit 1
+              ;;
+          esac
+
           rev="$(charmcraft status "${charm[0]}" --format=json | jq ".[].mappings[] | select(.base.channel == \"${base[1]}\" and .base.architecture == \"${base[2]}\") | .releases[] | select(.channel == \"$charm_channel\") | .revision")"
-          echo "Published charm: ${charm[0]}, revision: $rev"
+          echo "Published charm: ${charm[0]}, series: ${series}, architecture: ${base[2]}, revision: $rev"
         done
 
