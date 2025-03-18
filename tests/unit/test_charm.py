@@ -7,10 +7,11 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 from OpenSSL import crypto
-from ops import ActiveStatus, BlockedStatus
+from ops import ActiveStatus, BlockedStatus, JujuVersion
 from ops.testing import Harness
 
 from charm import NatsCharm
+from src.relations.natsclient_provider import NATS_URL_SECRET_LABEL_PREFIX
 
 
 @pytest.fixture
@@ -177,7 +178,10 @@ def test_writes_nrpe_checks_on_nrpe_available(harness: Harness):
         assert mocked_commit.called, mocked_check.mock_calls
 
 
-def test_published_nats_client_data_to_relation(harness: Harness):
+@pytest.mark.parametrize("secret_supports", (True, False))
+def test_published_nats_client_data_to_relation(harness: Harness, secret_supports):
+    juju_version_mock = MagicMock(spec=JujuVersion)
+    juju_version_mock.has_secrets = secret_supports
     with patch(
         "charm.NatsCluster.listen_address", new_callable=PropertyMock, return_value="1.2.3.4"
     ), patch(
@@ -188,9 +192,18 @@ def test_published_nats_client_data_to_relation(harness: Harness):
         return_value="1.2.3.4",
     ), patch(
         "nats_config.NATS.CONFIG_PATH"
+    ), patch.object(
+        JujuVersion, "from_environ", return_value=juju_version_mock
     ):
         with harness.hooks_disabled():
             rel = harness.add_relation("client", harness.charm.app.name)
         harness.charm.on.config_changed.emit()
         data = harness.get_relation_data(rel, harness.charm.unit)
         assert "url" in data
+
+        if secret_supports:
+            label = f"{NATS_URL_SECRET_LABEL_PREFIX}"
+            new_label = f"{NATS_URL_SECRET_LABEL_PREFIX}_{harness.charm.app.name}/0"
+            for label in [label, new_label]:
+                secret = harness.charm.model.get_secret(label=label)
+                assert secret and secret.get_content().get("url")
