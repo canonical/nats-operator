@@ -6,9 +6,11 @@
 import ipaddress
 import logging
 
-from ops import JujuVersion, Object, SecretNotFoundError, StoredState
+from ops import JujuVersion, Object, Secret, SecretNotFoundError, StoredState
 
 logger = logging.getLogger(__name__)
+
+NATS_URL_SECRET_LABEL_PREFIX = "nats-protected-url"
 
 
 class NATSClientProvider(Object):
@@ -18,6 +20,7 @@ class NATSClientProvider(Object):
 
     def __init__(self, charm, relation_name, listen_on_all_addresses, client_port):
         super().__init__(charm, relation_name)
+        self._charm = charm
         self._relation_name = relation_name
         self._client_port = client_port
         self._listen_on_all_addresses = listen_on_all_addresses
@@ -28,8 +31,6 @@ class NATSClientProvider(Object):
             self._listen_address = None
         self._ingress_addresses = None
         self.state.set_default(tls_ca=None)
-        if JujuVersion.from_environ().has_secrets:
-            self._secret_label = "nats-protected-url"
 
     @property
     def listen_address(self):
@@ -56,6 +57,14 @@ class NATSClientProvider(Object):
         """Set CA to publish this certificate to the remote unit via the Client relation."""
         self.state.tls_ca = tls_ca
 
+    def _ensure_secret(self, url: str, label: str) -> Secret:
+        """Retrieve an existing secret or create a new one if it does not exist."""
+        try:
+            secret = self.model.get_secret(label=label)
+        except SecretNotFoundError:
+            secret = self.model.unit.add_secret(content={"url": url}, label=label)
+        return secret
+
     def expose_nats(self, auth_token=None):
         """Exposes NATS to the outside world by publishing cert and url to relation data."""
         relations = self.model.relations[self._relation_name]
@@ -77,14 +86,11 @@ class NATSClientProvider(Object):
             # TODO: make this the only way to share url once all charms use the
             # charm-lib and juju > 3.0
             if JujuVersion.from_environ().has_secrets:
-                try:
-                    secret = self.model.get_secret(label=self._secret_label)
-                except SecretNotFoundError:
-                    logger.debug("Secret not found, creating a new one")
-                    secret = self.model.unit.add_secret(
-                        content={"url": url}, label=self._secret_label
-                    )
-                secret.grant(rel)
+                # Always create a secet with old secret label to maintain backward compatibility.
+                label = NATS_URL_SECRET_LABEL_PREFIX
+                new_secret_label = f"{NATS_URL_SECRET_LABEL_PREFIX}_{self._charm.unit.name}"
+                for secret_label in [label, new_secret_label]:
+                    self._ensure_secret(url, secret_label).grant(rel)
 
     @property
     def ingress_addresses(self):
