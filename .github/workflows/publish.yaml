@@ -81,8 +81,9 @@ jobs:
               fi
           fi
           base=(${charm[1]//-/ })
+          version="${base[0]#*@}"
           set -e
-          case "${base[1]}" in
+          case "$version" in
             22.04)
               series="jammy"
               ;;
@@ -90,12 +91,12 @@ jobs:
               series="noble"
               ;;
             *)
-              echo "ERROR: Unsupported Ubuntu series: ${base[1]}"
+              echo "ERROR: Unsupported Ubuntu series: ${version}"
               exit 1
               ;;
           esac
 
-          rev="$(charmcraft status "${charm[0]}" --format=json | jq ".[].mappings[] | select(.base.channel == \"${base[1]}\" and .base.architecture == \"${base[2]}\") | .releases[] | select(.channel == \"$charm_channel\") | .revision")"
-          echo "Published charm: ${charm[0]}, series: ${series}, architecture: ${base[2]}, revision: $rev"
+          rev="$(charmcraft status "${charm[0]}" --format=json | jq ".[].mappings[] | select(.base.channel == \"${version}\" and .base.architecture == \"${base[1]}\") | .releases[] | select(.channel == \"$charm_channel\") | .revision")"
+          echo "Published charm: ${charm[0]}, series: ${series}, architecture: ${base[1]}, revision: $rev"
         done
 
