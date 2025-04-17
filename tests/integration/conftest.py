@@ -71,6 +71,12 @@ def pytest_runtest_setup(item):
 def pytest_addoption(parser):
     parser.addoption("--constraints", default="", action="store", help="Model constraints")
     parser.addoption("--charm", default="", action="store", help="Path to a built charm")
+    parser.addoption(
+        "--anbox-cloud-version",
+        required=True,
+        action="store",
+        help="Version of the Anbox Cloud Charms to use for testing",
+    )
 
 
 @pytest.fixture
@@ -94,3 +100,8 @@ def constraints(request) -> dict:
 @pytest.fixture
 def charm_path(request):
     return request.config.getoption("--charm")
+
+
+@pytest.fixture
+def anbox_cloud_version(request):
+    return request.config.getoption("--anbox-cloud-version")
