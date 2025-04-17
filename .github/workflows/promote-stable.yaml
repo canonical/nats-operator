@@ -1,4 +1,4 @@
-name: Promote new set of stable charms and bundles
+name: Promote new set of stable charms
 on:
   workflow_dispatch:
 
