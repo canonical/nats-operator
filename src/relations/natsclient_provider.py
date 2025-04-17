@@ -62,7 +62,11 @@ class NATSClientProvider(Object):
         try:
             secret = self.model.get_secret(label=label)
         except SecretNotFoundError:
-            secret = self.model.unit.add_secret(content={"url": url}, label=label)
+            secret = self.model.unit.add_secret(
+                content={"url": url},
+                label=label,
+                description="Protected NATS connection URL for clients to access the messaging service",
+            )
         return secret
 
     def expose_nats(self, auth_token=None):
