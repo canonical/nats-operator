@@ -47,27 +47,43 @@ async def test_relate_with_anbox_charms(
     constraints,
     charm_name,
     charm_path,
+    snap_risk_level,
     anbox_cloud_version,
 ):
+    # TODO: since the Anbox Cloud 1.26 release, the Ubuntu Pro token is no
+    # longer a hard requirement for bootstrapping Anbox Cloud charm deployments.
+    # This change facilitates integration testing by allowing public charms
+    # like nats-operator to relate to the Anbox Cloud charm without requiring
+    # an Ubuntu Pro token. However, at the time of implementing this case, Anbox Cloud
+    # 1.26 is currently only available in the 1.26/edge channel. Use it for now and
+    # switch to <version>/stable once it's released.
+    channel = f"{anbox_cloud_version}/{snap_risk_level}"
     await asyncio.gather(
         ops_test.model.deploy(
             STREAM_GATEWAY_NAME,
             application_name=STREAM_GATEWAY_NAME,
             num_units=1,
-            channel=f"{anbox_cloud_version}/stable",
+            channel=f"{channel}",
+            config={
+                "snap_risk_level": snap_risk_level,
+            },
         ),
         ops_test.model.deploy(
             STREAM_AGENT_NAME,
             application_name=STREAM_AGENT_NAME,
             num_units=1,
-            channel=f"{anbox_cloud_version}/stable",
+            channel=f"{channel}",
+            config={
+                "snap_risk_level": snap_risk_level,
+            },
         ),
         ops_test.model.deploy(
             AMS_CHARM_NAME,  # Required by the stream agent
             application_name=AMS_CHARM_NAME,
-            channel=f"{anbox_cloud_version}/stable",
+            channel=f"{channel}",
             config={
                 "use_embedded_etcd": True,
+                "snap_risk_level": snap_risk_level,
             },
         ),
         ops_test.model.deploy(
