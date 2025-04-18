@@ -151,6 +151,7 @@ jobs:
           juju-channel: "${{ env.JUJU_CHANNEL }}"
       - name: Run integration tests
         run: |
+          args="--anbox-cloud-version $(< .anbox_cloud_version) "
           if [ "${{ matrix.platform.arch }}" == "arm64" ]; then
             args+="--constraints arch=arm64"
           fi
