@@ -3,8 +3,10 @@
 #
 """CA Client Relation Requirer."""
 
+import ipaddress
 import json
 import logging
+from itertools import filterfalse
 
 import ops
 from charms.tls_certificates_interface.v2.tls_certificates import (
@@ -22,6 +24,15 @@ from ops.model import SecretNotFoundError
 PRIVATE_KEY_SECRET_LABEL_PREFIX = "private-key_"
 
 logger = logging.getLogger(__name__)
+
+
+def is_ip_address(value: str) -> bool:
+    """Return True if the input value is a valid IPv4 address; False otherwise."""
+    try:
+        ipaddress.IPv4Address(value)
+        return True
+    except ipaddress.AddressValueError:
+        return False
 
 
 class CAAvailable(EventBase):
@@ -142,7 +153,8 @@ class CAClientRequires(Object):
         csr = generate_csr(
             private_key=private_key,
             subject=common_name,
-            sans=sans,
+            sans_ip=sans_ip,
+            sans_dns=sans_dns,
         )
         self.certs.request_certificate_creation(certificate_signing_request=csr)
 
