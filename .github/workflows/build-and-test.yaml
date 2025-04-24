@@ -151,8 +151,16 @@ jobs:
           juju-channel: "${{ env.JUJU_CHANNEL }}"
       - name: Run integration tests
         run: |
+          mkdir logs/
+          args="--crash-dump-output logs/ "
           if [ "${{ matrix.platform.arch }}" == "arm64" ]; then
             args+="--constraints arch=arm64"
           fi
           ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
-
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: logs-tests-${{ matrix.platform.charm_name }}-charm-juju-${{ env.JUJU_VERSION }}-${{ matrix.platform.arch }}
+          path: logs/
+          retention-days: 4
