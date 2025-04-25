@@ -1,11 +1,13 @@
 #
 # Copyright 2024 Canonical Ltd.  All rights reserved.
 #
+import subprocess
 import zipfile
 from pathlib import Path
 
 import pytest
 import yaml
+from packaging.version import Version
 
 OLD_CHARM_NAME = "nats-charmers-nats"
 
@@ -14,6 +16,12 @@ UBUNTU_SERIES_MAP = {
     "22.04": "jammy",
     "24.04": "noble",
 }
+
+
+def get_juju_version():
+    """Retrieve the Juju version and return it as a Version object."""
+    output = subprocess.check_output(["juju", "version"], text=True).strip()
+    return Version(output.split("-")[0])
 
 
 def extract_series(charm_path):
@@ -37,6 +45,10 @@ def pytest_configure(config):
         "markers",
         f"skip_upgrade_on_noble: Skip upgrade test as {OLD_CHARM_NAME} is not available on Noble.",
     )
+    config.addinivalue_line(
+        "markers",
+        "skip_test_when_juju_2_is_in_use: Skip tests if Juju 2.x is in use",
+    )
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -47,6 +59,12 @@ def pytest_runtest_setup(item):
         if series == "noble":
             pytest.skip(
                 f"{OLD_CHARM_NAME} is unavailable on Noble. Skipping the upgrade test on Noble."
+            )
+    if "skip_test_when_juju_2_is_in_use" in item.keywords:
+        juju_version = get_juju_version()
+        if juju_version and juju_version.major == 2:
+            pytest.skip(
+                "Skipping test because charm requires Juju 3.0+ to function",
             )
 
 
