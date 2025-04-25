@@ -7,6 +7,7 @@ import ipaddress
 import json
 import logging
 from itertools import filterfalse
+from typing import Optional
 
 import ops
 from charms.tls_certificates_interface.v2.tls_certificates import (
@@ -93,10 +94,7 @@ class CAClientRequires(Object):
     @property
     def is_ready(self):
         """Property to know if the relation is ready."""
-        return all(
-            p is not None
-            for p in (self.state.certificate, self.state.key, self.state.ca_certificate)
-        )
+        return all(p is not None for p in (self.certificate, self.key, self.ca_certificate))
 
     @property
     def certificate(self):
@@ -109,19 +107,10 @@ class CAClientRequires(Object):
     @property
     def key(self):
         """Property to get the configured private key."""
-        if self._has_secret_support:
-            try:
-                secret = self.model.get_secret(label=self._private_key_secret_label)
-                private_key = secret.get_content(refresh=True).get("private-key")
-                return load_pem_private_key(
-                    private_key.encode("utf-8"), password=None, backend=default_backend()
-                )
-            except SecretNotFoundError:
-                return None
-
-        if self.state.key:
+        private_key = self._get_private_key()
+        if private_key:
             return load_pem_private_key(
-                self.state.key.encode("utf-8"), password=None, backend=default_backend()
+                private_key.encode("utf-8"), password=None, backend=default_backend()
             )
 
     @property
@@ -145,7 +134,6 @@ class CAClientRequires(Object):
         common_name -- a new common name to use.
         sans -- an updated list of Subject Alternative Names to use.
         """
-        rel = self.framework.model.get_relation(self._relation_name)
         logger.info(f"Requesting a CA certificate. Common name: {common_name}, SANS: {sans}")
         private_key = self._generate_private_key()
         sans_ip = list(filter(is_ip_address, sans))
@@ -161,6 +149,7 @@ class CAClientRequires(Object):
         # Pass the common_name and sans via unit data as for the easy-rsa charm,
         # calling certs.request_certificate_creation would only return a client
         # certificate instead of a server certificate.
+        rel = self.framework.model.get_relation(self._relation_name)
         rel_data = rel.data[self.model.unit]
         rel_data["common_name"] = common_name
         rel_data["sans"] = json.dumps(sans)
@@ -185,10 +174,15 @@ class CAClientRequires(Object):
             )
             return
 
-        self.state.ca_certificate = ca_certificate
-        self.state.certificate = certificate
-        self._save_private_key(key)
-        self.on.tls_config_ready.emit()
+        if (
+            ca_certificate != self.state.ca_certificate
+            or certificate != self.state.certificate
+            or key != self._get_private_key()
+        ):
+            self.state.ca_certificate = ca_certificate
+            self.state.certificate = certificate
+            self._save_private_key(key)
+            self.on.tls_config_ready.emit()
 
     def restore_state(self):
         """Restore certificate state from relation data after a restart."""
@@ -213,33 +207,42 @@ class CAClientRequires(Object):
 
             logger.info("Restored certificate state")
 
-    def _generate_private_key(self) -> bytes:
+    def _get_private_key(self) -> Optional[str]:
         if not self._has_secret_support:
-            if not self.state.key:
-                private_key = generate_private_key(key_size=4096)
-                self.state.key = private_key.decode("utf-8")
-            return self.state.key.encode("utf-8")
+            return self.state.key
+        else:
+            try:
+                secret = self.model.get_secret(label=self._private_key_secret_label)
+                private_key = secret.get_content(refresh=True).get("private-key")
+                if private_key:
+                    return private_key
+            except SecretNotFoundError:
+                pass
+            return None
 
-        try:
-            secret = self._charm.model.get_secret(label=self._private_key_secret_label)
-            return secret.get_content().get("private-key").encode("utf-8")
-        except SecretNotFoundError:
-            private_key = generate_private_key(key_size=4096)
-            content = {"private-key": private_key.decode("utf-8")}
+    def _generate_private_key(self) -> bytes:
+        private_key = self._get_private_key()
+        if private_key:
+            return private_key.encode("utf-8")
+
+        private_key = generate_private_key(key_size=4096)
+        if not self._has_secret_support:
+            self.state.key = private_key.decode("utf-8")
+        else:
             self._charm.unit.add_secret(
-                content=content,
+                content={"private-key": private_key.decode("utf-8")},
                 label=self._private_key_secret_label,
                 description="Private key used for certificate generation",
             )
-            return private_key
+        return private_key
 
     def _save_private_key(self, private_key: str):
         if self._has_secret_support:
             try:
                 secret = self.model.get_secret(label=self._private_key_secret_label)
-                content = {"private-key": private_key}
-                if secret.get_content(refresh=True) != content:
-                    secret.set_content(content)
+                current_content = secret.get_content(refresh=True)
+                if current_content.get("private-key") != private_key:
+                    secret.set_content({"private-key": private_key})
             except SecretNotFoundError:
                 self._charm.unit.add_secret(
                     content={"private-key": private_key},
