@@ -19,7 +19,15 @@ from charms.tls_certificates_interface.v2.tls_certificates import (
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from cryptography.x509 import load_pem_x509_certificate
-from ops import Application, EventBase, EventSource, Object, ObjectEvents, StoredState
+from ops import (
+    Application,
+    EventBase,
+    EventSource,
+    Object,
+    ObjectEvents,
+    SecretChangedEvent,
+    StoredState,
+)
 from ops.model import SecretNotFoundError
 
 PRIVATE_KEY_SECRET_LABEL_PREFIX = "private-key_"
@@ -73,6 +81,8 @@ class CAClientRequires(Object):
         self._has_secret_support = ops.JujuVersion.from_environ().has_secrets
         unit_name = self._charm.model.unit.name.replace("/", "_")
         self._private_key_secret_label = f"{PRIVATE_KEY_SECRET_LABEL_PREFIX}{unit_name}"
+
+        self.framework.observe(charm.on.secret_changed, self._on_secret_changed)
 
         self.state.set_default(ca_certificate=None, key=None, certificate=None)
 
@@ -181,8 +191,8 @@ class CAClientRequires(Object):
         ):
             self.state.ca_certificate = ca_certificate
             self.state.certificate = certificate
-            self._save_private_key(key)
-            self.on.tls_config_ready.emit()
+            if self._save_private_key(key):
+                self.on.tls_config_ready.emit()
 
     def restore_state(self):
         """Restore certificate state from relation data after a restart."""
@@ -243,6 +253,9 @@ class CAClientRequires(Object):
                 current_content = secret.get_content(refresh=True)
                 if current_content.get("private-key") != private_key:
                     secret.set_content({"private-key": private_key})
+                    # Rely on the secret_changed function to emit the tls_config_ready
+                    # event once a new revision is successfully added.
+                    return False
             except SecretNotFoundError:
                 self._charm.unit.add_secret(
                     content={"private-key": private_key},
@@ -251,6 +264,11 @@ class CAClientRequires(Object):
                 )
         else:
             self.state.key = private_key
+        return True
+
+    def _on_secret_changed(self, event: SecretChangedEvent):
+        if event.secret.label == self._private_key_secret_label and self.is_ready:
+            self.on.tls_config_ready.emit()
 
     def _on_certificate_available(self, event: CertificateAvailableEvent) -> None:
         """Handle the event when a TLS certificate becomes available.
