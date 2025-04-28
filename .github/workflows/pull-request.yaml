@@ -17,5 +17,5 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  build-and-test:
     uses: ./.github/workflows/build-and-test.yaml

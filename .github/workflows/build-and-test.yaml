@@ -164,3 +164,11 @@ jobs:
           name: logs-tests-${{ matrix.platform.charm_name }}-charm-juju-${{ env.JUJU_VERSION }}-${{ matrix.platform.arch }}
           path: logs/
           retention-days: 4
+      # FIXME: The current post actions-operator tries to upload any artifact called
+      # juju-crashdump-* with name juju-crashdump which github is not happy with.
+      # so we remove the files before the cleanup so that the cleanup does not
+      # fail.
+      - name: Remove logs if present
+        if: failure()
+        run: |
+          rm -rf logs/juju-crashdump-*

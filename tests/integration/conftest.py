@@ -1,6 +1,7 @@
 #
 # Copyright 2024 Canonical Ltd.  All rights reserved.
 #
+import json
 import subprocess
 import zipfile
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 from packaging.version import Version
+from packaging.version import parse as parse_version
 
 OLD_CHARM_NAME = "nats-charmers-nats"
 
@@ -38,6 +40,26 @@ def extract_series(charm_path):
                 raise ValueError("Invalid or unsupported Ubuntu series")
 
     raise ValueError("Failed to extract series from charm metadata")
+
+
+def get_latest_anbox_cloud_version():
+    result = subprocess.run(
+        ["juju", "info", "anbox-cloud", "--format=json"],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    data = json.loads(result.stdout)
+    latest = data["tracks"][0]
+
+    # Since Anbox Cloud 1.26 and above lift the constraint for Pro token
+    # during deployment, which is necessary for running integration tests
+    # in the nats operator, hence the minimum supported version for
+    # integration tests is set to 1.26.
+    if parse_version(latest) < parse_version("1.26"):
+        return "1.26"
+
+    return latest
 
 
 def pytest_configure(config):
@@ -71,6 +93,12 @@ def pytest_runtest_setup(item):
 def pytest_addoption(parser):
     parser.addoption("--constraints", default="", action="store", help="Model constraints")
     parser.addoption("--charm", default="", action="store", help="Path to a built charm")
+    parser.addoption(
+        "--snap-risk-level",
+        default="",
+        action="store",
+        help="Risk level to use for the snap deployed for Anbox Cloud charms",
+    )
 
 
 @pytest.fixture
@@ -94,3 +122,13 @@ def constraints(request) -> dict:
 @pytest.fixture
 def charm_path(request):
     return request.config.getoption("--charm")
+
+
+@pytest.fixture
+def snap_risk_level(request):
+    return request.config.getoption("--snap-risk-level")
+
+
+@pytest.fixture(scope="session")
+def anbox_cloud_version(request):
+    return get_latest_anbox_cloud_version()

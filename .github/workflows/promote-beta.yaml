@@ -1,4 +1,4 @@
-name: Promote new set of candidate charms
+name: Promote new set of beta charms
 on:
   workflow_dispatch:
 
@@ -10,8 +10,8 @@ jobs:
   promote-candidate:
     uses: ./.github/workflows/promote-charms.yaml
     with:
-      from-risk: beta
-      to-risk: candidate
+      from-risk: edge
+      to-risk: beta
     secrets:
       CHARMHUB_TOKEN: ${{ secrets.CHARMHUB_TOKEN }}
 
