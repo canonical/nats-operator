@@ -71,19 +71,15 @@ class NATSClientProvider(Object):
 
     def expose_nats(self, auth_token=None):
         """Exposes NATS to the outside world by publishing cert and url to relation data."""
+        tls_ca_available = self.state.tls_ca is not None
+        protocol = "tls" if tls_ca_available else "nats"
+        token_field = f"{auth_token}@" if auth_token else ""
+        url = f"{protocol}://{token_field}{self.listen_address}:{self._client_port}"
+
         relations = self.model.relations[self._relation_name]
         for rel in relations:
-            token_field = ""
-            protocol = "nats"
-
-            if auth_token is not None:
-                token_field = f"{auth_token}@"
-            if self.state.tls_ca:
-                protocol = "tls"
-
-            url = f"{protocol}://{token_field}{self.listen_address}:{self._client_port}"
             rel.data[self.model.unit]["url"] = url
-            if self.model.unit.is_leader() and self.state.tls_ca is not None:
+            if self.model.unit.is_leader() and tls_ca_available:
                 rel.data[self.model.app]["ca_cert"] = self.state.tls_ca
 
             # Use secrets only if juju > 3.0
