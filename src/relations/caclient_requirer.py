@@ -236,14 +236,7 @@ class CAClientRequires(Object):
             return private_key.encode("utf-8")
 
         private_key = generate_private_key(key_size=4096)
-        if not self._has_secret_support:
-            self.state.key = private_key.decode("utf-8")
-        else:
-            self._charm.unit.add_secret(
-                content={"private-key": private_key.decode("utf-8")},
-                label=self._private_key_secret_label,
-                description="Private key used for certificate generation",
-            )
+        self._save_private_key(private_key.decode("utf-8"))
         return private_key
 
     def _save_private_key(self, private_key: str):
