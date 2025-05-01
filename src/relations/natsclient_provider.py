@@ -61,6 +61,8 @@ class NATSClientProvider(Object):
         """Retrieve an existing secret or create a new one if it does not exist."""
         try:
             secret = self.model.get_secret(label=label)
+            if secret.get_content(refresh=True).get("url") != url:
+                secret.set_content(content={"url": url})
         except SecretNotFoundError:
             secret = self.model.unit.add_secret(
                 content={"url": url},
@@ -71,30 +73,32 @@ class NATSClientProvider(Object):
 
     def expose_nats(self, auth_token=None):
         """Exposes NATS to the outside world by publishing cert and url to relation data."""
+        tls_ca_available = self.state.tls_ca is not None
+        protocol = "tls" if tls_ca_available else "nats"
+        token_field = f"{auth_token}@" if auth_token else ""
+        url = f"{protocol}://{token_field}{self.listen_address}:{self._client_port}"
+
+        # Use secrets only if juju > 3.0
+        # TODO: make this the only way to share url once all charms use the
+        # charm-lib and juju > 3.0
+        # Always create a secet with old secret label to maintain backward compatibility.
+        has_secrets_support = JujuVersion.from_environ().has_secrets
+        if has_secrets_support:
+            labels = [
+                NATS_URL_SECRET_LABEL_PREFIX,
+                f"{NATS_URL_SECRET_LABEL_PREFIX}_{self._charm.unit.name}",
+            ]
+            secrets = [self._ensure_secret(url, label) for label in labels]
+
         relations = self.model.relations[self._relation_name]
         for rel in relations:
-            token_field = ""
-            protocol = "nats"
-
-            if auth_token is not None:
-                token_field = f"{auth_token}@"
-            if self.state.tls_ca:
-                protocol = "tls"
-
-            url = f"{protocol}://{token_field}{self.listen_address}:{self._client_port}"
             rel.data[self.model.unit]["url"] = url
-            if self.model.unit.is_leader() and self.state.tls_ca is not None:
+            if self.model.unit.is_leader() and tls_ca_available:
                 rel.data[self.model.app]["ca_cert"] = self.state.tls_ca
 
-            # Use secrets only if juju > 3.0
-            # TODO: make this the only way to share url once all charms use the
-            # charm-lib and juju > 3.0
-            if JujuVersion.from_environ().has_secrets:
-                # Always create a secet with old secret label to maintain backward compatibility.
-                label = NATS_URL_SECRET_LABEL_PREFIX
-                new_secret_label = f"{NATS_URL_SECRET_LABEL_PREFIX}_{self._charm.unit.name}"
-                for secret_label in [label, new_secret_label]:
-                    self._ensure_secret(url, secret_label).grant(rel)
+            if has_secrets_support:
+                for secret in secrets:
+                    secret.grant(rel)
 
     @property
     def ingress_addresses(self):
