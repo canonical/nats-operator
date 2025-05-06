@@ -8,9 +8,6 @@ on:
       - ".github/workflows/update-libs.yaml"
       - ".gitignore"
       - ".jujuignore"
-  push:
-    branches:
-      - "renovate/*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
