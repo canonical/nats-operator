@@ -59,6 +59,10 @@
             "schedule": [
                 "on monday"
             ]
+        },
+        {
+             "matchPackageNames": ["rpds-py"],
+             "allowedVersions": "^0.24.0"
         }
     ],
     "regexManagers": [
