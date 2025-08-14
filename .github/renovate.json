@@ -10,7 +10,7 @@
         ":semanticCommits",
         ":semanticCommitScope(deps)",
         "docker:pinDigests",
-        "helpers:pinGitHubActionDigests",
+        "helpers:pinGitHubActionDigestsToSemver",
         "regexManagers:dockerfileVersions",
         "group:allNonMajor"
     ],
