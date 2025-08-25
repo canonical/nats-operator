@@ -31,12 +31,15 @@ jobs:
         sudo apt install  -y zip
         sudo snap install --classic --channel=latest/stable charmcraft
         sudo snap install --channel=3/stable juju
+    - name: Select charmhub track
+      id: track
+      run: |
+        echo "track=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
     - name: Promote charms
       env:
         CHARMCRAFT_AUTH: ${{ secrets.CHARMHUB_TOKEN }}
       run: |
-        track=latest
-
+        track="${{ steps.track.outputs.track }}"
         for series in jammy noble ; do
           ./scripts/promote-charms.sh \
             --from="$track"/${{ inputs.from-risk }} \
