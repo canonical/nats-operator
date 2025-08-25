@@ -5,16 +5,17 @@ on:
     inputs:
       scope:
         type: choice
-        description: 'Scope the workflow should run with. Allowed values are: all, build-only, test-only'
+        description: 'Scope the workflow should run with. Allowed values are: all, build-only, integration-test-only'
         default: 'all'
         options:
           - all
           - build-only
+          - integration-test-only
   workflow_call:
     inputs:
       scope:
         type: string
-        description: 'Scope the workflow should run with. Allowed values are: all, build-only'
+        description: 'Scope the workflow should run with. Allowed values are: all, build-only, integration-test-only'
         default: 'all'
       cache:
         description: Whether to use cache for faster builds
@@ -24,6 +25,7 @@ on:
 jobs:
   static-and-unit-tests:
     name: Static & Unit tests
+    if: inputs.scope != 'integration-test-only'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -51,6 +53,7 @@ jobs:
 
   build:
     name: 'Build ${{ matrix.platform.charm_name }}-${{ matrix.platform.arch }}'
+    if: inputs.scope != 'integration-test-only'
     strategy:
       fail-fast: false
       matrix:
@@ -115,9 +118,9 @@ jobs:
             ./*.charm
           if-no-files-found: error
 
-  integration-test:
+  integration-test-only:
     name: Integration tests
-    if: inputs.scope != 'build-only'
+    if: inputs.scope == 'integration-test-only' || inputs.scope == 'all'
     needs:
       - static-and-unit-tests
       - collect-platforms
