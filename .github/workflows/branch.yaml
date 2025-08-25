@@ -1,0 +1,44 @@
+name: Branch for upstream version
+on:
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: 'Branch name (aligned with upstream version, e.g. 2.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  branch:
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'canonical' }}
+    environment: stable
+    steps:
+    - name: Checkout
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      with:
+        ref: main
+        fetch-depth: 0
+    - name: Create branch
+      env:
+        AUTHOR_NAME: "Anbox Bot"
+        AUTHOR_EMAIL: "anbox-bot@canonical.com"
+        ANBOX_BOT_SSH_KEY: ${{ secrets.ANBOX_BOT_SSH_KEY }}
+        BRANCH_NAME: ${{ inputs.branch_name }}
+      run: |
+        # Setup SSH key based access so we can write a branch
+        . "$GITHUB_WORKSPACE"/scripts/setup-gh-ssh.sh
+
+        git config --global user.name "$AUTHOR_NAME"
+        git config --global user.email "$AUTHOR_EMAIL"
+
+        branch_name="$BRANCH_NAME"
+        if ! [[ "$branch_name" =~ ^[0-9]+(\.[0-9]+)*(-[A-Za-z0-9._-]+)?$ ]]; then
+          echo "Invalid branch name: $branch_name"
+          exit 1
+        fi
+        git checkout -b "$branch_name"
+        git push git@github-nats-operator:canonical/nats-operator "$branch_name"
