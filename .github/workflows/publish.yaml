@@ -2,8 +2,10 @@ name: Publish Charms
 
 on:
   push:
+    # Only publish charms from the upstream version based branch name
     branches:
-      - main
+      - '[0-9]+'        # match major version only (e.g. 2)
+      - '[0-9]+-*'      # match major version + suffix (e.g. 2-tls)
 
   workflow_dispatch:
 
@@ -37,7 +39,7 @@ jobs:
     - name: Select charmhub channel
       id: channel
       run: |
-        echo "channel=latest/edge" >> "$GITHUB_OUTPUT"
+        echo "channel=${{ github.ref_name }}/edge" >> "$GITHUB_OUTPUT"
     - name: Fetch charm artifacts
       uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
       with:
