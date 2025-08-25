@@ -7,7 +7,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  promote-candidate:
+  promote-stable:
     uses: ./.github/workflows/promote-charms.yaml
     with:
       from-risk: candidate
