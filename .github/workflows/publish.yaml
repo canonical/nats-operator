@@ -14,7 +14,7 @@ concurrency:
 jobs:
 
   build-charms:
-    name: Build & Test
+    name: Build & Unit Test
     uses: ./.github/workflows/build-and-test.yaml
     secrets: inherit
     with:
@@ -100,3 +100,19 @@ jobs:
           echo "Published charm: ${charm[0]}, series: ${series}, architecture: ${base[1]}, revision: $rev"
         done
 
+  run-integration-test:
+    name: Integration Test
+    needs: [publish-to-edge]
+    uses: ./.github/workflows/build-and-test.yaml
+    secrets: inherit
+    with:
+      scope: integration-test
+
+  promote-to-beta:
+    uses: ./.github/workflows/promote-charms.yaml
+    needs: [run-integration-test]
+    with:
+      from-risk: edge
+      to-risk: beta
+    secrets:
+      CHARMHUB_TOKEN: ${{ secrets.CHARMHUB_TOKEN }}
