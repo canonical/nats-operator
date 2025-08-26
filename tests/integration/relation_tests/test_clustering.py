@@ -15,12 +15,17 @@ from pytest_operator.plugin import OpsTest
 
 @pytest.mark.skip_if_deployed
 @pytest.mark.abort_on_fail
-async def test_deploy_cluster(ops_test: OpsTest, constraints, charm_path, charm_name):
+async def test_deploy_cluster(
+    ops_test: OpsTest, constraints, charm_path, charm_channel, charm_name
+):
     if constraints:
         await ops_test.model.set_constraints(constraints)
-    # Build and deploy charm from local source folder
+    # Build and deploy charm from local source folder and charm store
     if not charm_path:
-        charm_path = await ops_test.build_charm(".")
+        if charm_channel:
+            charm_path = charm_name
+        else:
+            charm_path = await ops_test.build_charm(".")
     tester_charm = await ops_test.build_charm(TEST_APP_CHARM_PATH)
     async with ops_test.fast_forward():
         await asyncio.gather(
@@ -34,6 +39,7 @@ async def test_deploy_cluster(ops_test: OpsTest, constraints, charm_path, charm_
                 charm_path,
                 application_name=charm_name,
                 num_units=3,
+                channel=charm_channel,
             ),
         )
         await ops_test.model.wait_for_idle(apps=APP_NAMES, status="active", timeout=1000)
