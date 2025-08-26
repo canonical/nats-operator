@@ -11,6 +11,10 @@ on:
           - all
           - build-only
           - integration-test-only
+      channel:
+        type: string
+        description: 'Charm channel to use. If not given, use the local build charm for testing'
+        default: ''
   workflow_call:
     inputs:
       scope:
@@ -21,6 +25,10 @@ on:
         description: Whether to use cache for faster builds
         default: false
         type: boolean
+      channel:
+        type: string
+        description: 'Charm channel to use. If not given, use the local build charm for testing'
+        default: ''
 
 jobs:
   static-and-unit-tests:
@@ -159,7 +167,13 @@ jobs:
           if [ "${{ matrix.platform.arch }}" == "arm64" ]; then
             args+="--constraints arch=arm64"
           fi
-          ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
+
+           channel="${{ inputs.channel }}"
+           if [ -n "$channel" ]; then
+             ./scripts/run-integration-tests --charm-channel="$channel" ${args}
+           else
+             ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
+           fi
       - name: Upload test logs
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

@@ -106,7 +106,8 @@ jobs:
     uses: ./.github/workflows/build-and-test.yaml
     secrets: inherit
     with:
-      scope: integration-test
+      scope: integration-test-only
+      channel: ${{ github.ref_name }}/edge
 
   promote-to-beta:
     uses: ./.github/workflows/promote-charms.yaml
