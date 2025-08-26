@@ -99,6 +99,12 @@ def pytest_addoption(parser):
         action="store",
         help="Risk level to use for the snap deployed for Anbox Cloud charms",
     )
+    parser.addoption(
+        "--charm-channel",
+        default=None,
+        action="store",
+        help="Channel to use for the NATs charm deployment",
+    )
 
 
 @pytest.fixture
@@ -122,6 +128,11 @@ def constraints(request) -> dict:
 @pytest.fixture
 def charm_path(request):
     return request.config.getoption("--charm")
+
+
+@pytest.fixture
+def charm_channel(request):
+    return request.config.getoption("--charm-channel")
 
 
 @pytest.fixture

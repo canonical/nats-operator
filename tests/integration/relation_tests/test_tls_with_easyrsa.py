@@ -18,12 +18,16 @@ async def test_deploy_tls(
     constraints,
     charm_path,
     charm_name,
+    charm_channel,
 ):
     if constraints:
         await ops_test.model.set_constraints(constraints)
-    # Build and deploy charm from local source folder
+    # Build and deploy charm from local source folder or charm store
     if not charm_path:
-        charm_path = await ops_test.build_charm(".")
+        if charm_channel:
+            charm_path = charm_name
+        else:
+            charm_path = await ops_test.build_charm(".")
     tester_charm = await ops_test.build_charm(TEST_APP_CHARM_PATH)
     async with ops_test.fast_forward():
         await asyncio.gather(
@@ -36,6 +40,7 @@ async def test_deploy_tls(
                 charm_path,
                 application_name=charm_name,
                 num_units=1,
+                channel=charm_channel,
             ),
             ops_test.model.deploy(
                 TLS_CA_CHARM_NAME,

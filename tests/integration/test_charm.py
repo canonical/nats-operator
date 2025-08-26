@@ -23,13 +23,23 @@ async def test_smoke(
     ops_test: OpsTest,
     constraints,
     charm_path,
+    charm_name,
+    charm_channel,
 ):
     # Build and deploy charm from local source folder
     if not charm_path:
-        charm_path = await ops_test.build_charm(".")
+        if charm_channel:
+            charm_path = charm_name
+        else:
+            charm_path = await ops_test.build_charm(".")
     if constraints:
         await ops_test.model.set_constraints(constraints)
-    app = await ops_test.model.deploy(charm_path)
+    app = await ops_test.model.deploy(
+        charm_path,
+        application_name=charm_name,
+        num_units=1,
+        channel=charm_channel,
+    )
     await ops_test.model.block_until(lambda: app.status in ("active", "error"), timeout=300)
     assert app.status, "active"
 
