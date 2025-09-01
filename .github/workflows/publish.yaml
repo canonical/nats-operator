@@ -41,7 +41,7 @@ jobs:
       id: channel
       run: |
         branch=gh${{ github.run_id }}
-        channel=${{ github.ref_name }}/edge
+        channel="$(cat .track)"/edge
         echo "channel=$channel" >> "$GITHUB_OUTPUT"
         echo "test_channel=$channel/$branch" >> "$GITHUB_OUTPUT"
     - name: Fetch charm artifacts

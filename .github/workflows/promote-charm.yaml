@@ -34,7 +34,8 @@ jobs:
     - name: Select charmhub track
       id: track
       run: |
-        echo "track=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+        track="$(cat .track)"
+        echo "track=$track" >> "$GITHUB_OUTPUT"
     - name: Promote charms
       env:
         CHARMCRAFT_AUTH: ${{ secrets.CHARMHUB_TOKEN }}
