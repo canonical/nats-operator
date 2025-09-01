@@ -120,7 +120,7 @@ jobs:
       channel: ${{ needs.publish-to-edge.outputs.test_channel }}
 
   promote-to-beta:
-    uses: ./.github/workflows/promote-charms.yaml
+    uses: ./.github/workflows/promote-charm.yaml
     needs: [run-integration-test]
     with:
       from-risk: edge/${{ needs.publish-to-edge.outputs.branch }}
