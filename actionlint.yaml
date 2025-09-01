@@ -1,0 +1,30 @@
+name: Validate Github Workflows
+
+on:
+  pull_request:
+    paths:
+      - .github/**
+
+jobs:
+  validate-gh-workflows:
+    runs-on: [self-hosted, linux, X64, noble, large, linux]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        # Only checkout the .github/ directory
+        sparse-checkout: |
+          .github/
+        sparse-checkout-cone-mode: false
+    - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+      with:
+        go-version: 'stable'
+    - name: Install actionlint
+      run: |
+        go install github.com/rhysd/actionlint/cmd/actionlint@03d0035246f3e81f36aed592ffb4bebf33a03106 # v1.7.7
+    - name: Check workflow files
+      shell: bash
+      run: |
+        actionlint \
+        -format '{{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}}::{{$err.Message}}%0A```%0A{{replace $err.Snippet "\\n" "%0A"}}%0A```\n{{end}}' \
+        -color
