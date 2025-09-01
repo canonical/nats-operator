@@ -8,7 +8,7 @@ concurrency:
 
 jobs:
   promote-stable:
-    uses: ./.github/workflows/promote-charms.yaml
+    uses: ./.github/workflows/promote-charm.yaml
     with:
       from-risk: candidate
       to-risk: stable
