@@ -14,7 +14,7 @@ concurrency:
 jobs:
 
   build-charms:
-    name: Build & Test
+    name: Build & Unit Test
     uses: ./.github/workflows/build-and-test.yaml
     secrets: inherit
     with:
@@ -24,6 +24,9 @@ jobs:
     name: Release to edge
     runs-on: [self-hosted, linux, X64, jammy, large]
     needs: [build-charms]
+    outputs:
+      test_channel: ${{ steps.channel.outputs.test_channel }}
+      branch: ${{ steps.channel.outputs.branch }}
     steps:
     - name: Checkout
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -37,7 +40,10 @@ jobs:
     - name: Select charmhub channel
       id: channel
       run: |
-        echo "channel=latest/edge" >> "$GITHUB_OUTPUT"
+        branch=gh${{ github.run_id }}
+        channel="$(cat .track)"/edge
+        echo "channel=$channel" >> "$GITHUB_OUTPUT"
+        echo "test_channel=$channel/$branch" >> "$GITHUB_OUTPUT"
     - name: Fetch charm artifacts
       uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
       with:
@@ -51,6 +57,7 @@ jobs:
       run: |
         cd charms/
         charm_channel="${{ steps.channel.outputs.channel }}"
+        test_channel="${{ steps.channel.outputs.test_channel }}"
         for charm_file in *.charm; do
           charm_file_name="$(basename ${charm_file} .charm)"
           charm=(${charm_file_name//_/ })
@@ -73,7 +80,10 @@ jobs:
           zip -u "./${charm_file}" build_time
 
           set +e
-          output="$(charmcraft upload --release "$charm_channel" --name "${charm[0]}" $extra_args "${charm_file}" 2>&1)"
+          output="$(charmcraft upload \
+            --release "$charm_channel" \
+            --release "$test_channel" \
+            --name "${charm[0]}" $extra_args "${charm_file}" 2>&1)"
           if [ $? -ne 0 ] ; then
               if ! echo "$output" | grep -q "An upload with that digest" ; then
                   echo "ERROR: Failed to publish $charm: $output"
@@ -100,3 +110,20 @@ jobs:
           echo "Published charm: ${charm[0]}, series: ${series}, architecture: ${base[1]}, revision: $rev"
         done
 
+  run-integration-test:
+    name: Integration Test
+    needs: [publish-to-edge]
+    uses: ./.github/workflows/build-and-test.yaml
+    secrets: inherit
+    with:
+      scope: integration-test-only
+      channel: ${{ needs.publish-to-edge.outputs.test_channel }}
+
+  promote-to-beta:
+    uses: ./.github/workflows/promote-charms.yaml
+    needs: [run-integration-test]
+    with:
+      from-risk: edge/${{ needs.publish-to-edge.outputs.branch }}
+      to-risk: beta
+    secrets:
+      CHARMHUB_TOKEN: ${{ secrets.CHARMHUB_TOKEN }}

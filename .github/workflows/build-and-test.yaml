@@ -5,25 +5,35 @@ on:
     inputs:
       scope:
         type: choice
-        description: 'Scope the workflow should run with. Allowed values are: all, build-only, test-only'
+        description: 'Scope the workflow should run with. Allowed values are: all, build-only, integration-test-only'
         default: 'all'
         options:
           - all
           - build-only
+          - integration-test-only
+      channel:
+        type: string
+        description: 'Charm channel to use. If not given, use the local build charm for testing'
+        default: ''
   workflow_call:
     inputs:
       scope:
         type: string
-        description: 'Scope the workflow should run with. Allowed values are: all, build-only'
+        description: 'Scope the workflow should run with. Allowed values are: all, build-only, integration-test-only'
         default: 'all'
       cache:
         description: Whether to use cache for faster builds
         default: false
         type: boolean
+      channel:
+        type: string
+        description: 'Charm channel to use. If not given, use the local build charm for testing'
+        default: ''
 
 jobs:
   static-and-unit-tests:
     name: Static & Unit tests
+    if: inputs.scope != 'integration-test-only'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -51,6 +61,7 @@ jobs:
 
   build:
     name: 'Build ${{ matrix.platform.charm_name }}-${{ matrix.platform.arch }}'
+    if: inputs.scope != 'integration-test-only'
     strategy:
       fail-fast: false
       matrix:
@@ -115,9 +126,9 @@ jobs:
             ./*.charm
           if-no-files-found: error
 
-  integration-test:
+  integration-test-only:
     name: Integration tests
-    if: inputs.scope != 'build-only'
+    if: inputs.scope == 'integration-test-only' || inputs.scope == 'all'
     needs:
       - static-and-unit-tests
       - collect-platforms
@@ -156,7 +167,13 @@ jobs:
           if [ "${{ matrix.platform.arch }}" == "arm64" ]; then
             args+="--constraints arch=arm64"
           fi
-          ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
+
+           channel="${{ inputs.channel }}"
+           if [ -n "$channel" ]; then
+             ./scripts/run-integration-tests --charm-channel="$channel" ${args}
+           else
+             ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
+           fi
       - name: Upload test logs
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
