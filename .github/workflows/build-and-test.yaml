@@ -126,7 +126,7 @@ jobs:
             ./*.charm
           if-no-files-found: error
 
-  integration-test-only:
+  integration-test:
     name: Integration tests
     if: ${{ always() && contains(needs.*.result, 'success') && (inputs.scope == 'integration-test-only' || inputs.scope == 'all') }}
     needs:
