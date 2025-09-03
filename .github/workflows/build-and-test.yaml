@@ -148,6 +148,7 @@ jobs:
       - name: Download packed charm(s)
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         id: downloaded-charm
+        if: inputs.scope == 'all'
         with:
           name: ${{ matrix.platform.charm_name }}-charm-${{ matrix.platform.arch }}
       - name: Set channel
