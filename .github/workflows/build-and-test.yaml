@@ -128,7 +128,7 @@ jobs:
 
   integration-test-only:
     name: Integration tests
-    if: inputs.scope == 'integration-test-only' || inputs.scope == 'all'
+    if: ${{ always() && contains(needs.*.result, 'success') && (inputs.scope == 'integration-test-only' || inputs.scope == 'all') }}
     needs:
       - static-and-unit-tests
       - collect-platforms
