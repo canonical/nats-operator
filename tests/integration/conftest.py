@@ -77,11 +77,20 @@ def pytest_configure(config):
 def pytest_runtest_setup(item):
     if "skip_upgrade_on_noble" in item.keywords:
         charm_path = item.config.getoption("--charm")
-        series = extract_series(charm_path)
-        if series == "noble":
-            pytest.skip(
-                f"{OLD_CHARM_NAME} is unavailable on Noble. Skipping the upgrade test on Noble."
-            )
+        if charm_path:
+            series = extract_series(charm_path)
+            if series == "noble":
+                pytest.skip(
+                    f"{OLD_CHARM_NAME} is unavailable on Noble. Skipping the upgrade test on Noble."
+                )
+
+        base_version = item.config.getoption("--base-version")
+        if base_version:
+            series = UBUNTU_SERIES_MAP.get(base_version)
+            if series == "noble":
+                pytest.skip(
+                    f"{OLD_CHARM_NAME} is unavailable on Noble. Skipping the upgrade test on Noble."
+                )
     if "skip_test_when_juju_2_is_in_use" in item.keywords:
         juju_version = get_juju_version()
         if juju_version and juju_version.major == 2:
@@ -104,6 +113,12 @@ def pytest_addoption(parser):
         default=None,
         action="store",
         help="Channel to use for the NATs charm deployment",
+    )
+    parser.addoption(
+        "--base-version",
+        default=None,
+        action="store",
+        help="Base to deploy the charm from the store",
     )
 
 
@@ -133,6 +148,14 @@ def charm_path(request):
 @pytest.fixture
 def charm_channel(request):
     return request.config.getoption("--charm-channel")
+
+
+@pytest.fixture
+def charm_series(request):
+    base_version = request.config.getoption("--base-version")
+    if base_version:
+        return UBUNTU_SERIES_MAP.get(base_version)
+    return None
 
 
 @pytest.fixture

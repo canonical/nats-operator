@@ -25,6 +25,7 @@ async def test_smoke(
     charm_path,
     charm_name,
     charm_channel,
+    charm_series,
 ):
     # Build and deploy charm from local source folder
     if not charm_path:
@@ -39,6 +40,7 @@ async def test_smoke(
         application_name=charm_name,
         num_units=1,
         channel=charm_channel,
+        series=charm_series,
     )
     await ops_test.model.block_until(lambda: app.status in ("active", "error"), timeout=300)
     assert app.status, "active"
