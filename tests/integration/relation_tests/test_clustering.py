@@ -16,7 +16,7 @@ from pytest_operator.plugin import OpsTest
 @pytest.mark.skip_if_deployed
 @pytest.mark.abort_on_fail
 async def test_deploy_cluster(
-    ops_test: OpsTest, constraints, charm_path, charm_channel, charm_name
+    ops_test: OpsTest, constraints, charm_path, charm_channel, charm_name, charm_series
 ):
     if constraints:
         await ops_test.model.set_constraints(constraints)
@@ -40,6 +40,7 @@ async def test_deploy_cluster(
                 application_name=charm_name,
                 num_units=3,
                 channel=charm_channel,
+                series=charm_series,
             ),
         )
         await ops_test.model.wait_for_idle(apps=APP_NAMES, status="active", timeout=1000)

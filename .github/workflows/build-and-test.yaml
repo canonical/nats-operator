@@ -161,6 +161,9 @@ jobs:
         with:
           provider: lxd
           juju-channel: "${{ env.JUJU_CHANNEL }}"
+      - name: Install jq
+        run: |
+          sudo apt install -y jq
       - name: Run integration tests
         run: |
           mkdir logs/
@@ -169,12 +172,14 @@ jobs:
             args+="--constraints arch=arm64"
           fi
 
-           channel="${{ inputs.channel }}"
-           if [ -n "$channel" ]; then
-             ./scripts/run-integration-tests --charm-channel="$channel" ${args}
-           else
-             ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
-           fi
+          channel="${{ inputs.channel }}"
+          if [ -n "$channel" ]; then
+            echo "${{ toJSON(matrix.platform.versions) }}" | jq -r '.[]' | while read -r version; do
+              ./scripts/run-integration-tests --charm-channel="$channel" --base-version="$version" ${args}
+            done
+          else
+            ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
+          fi
       - name: Upload test logs
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
