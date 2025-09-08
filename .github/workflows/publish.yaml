@@ -58,7 +58,6 @@ jobs:
         CHARMCRAFT_AUTH: ${{ secrets.CHARMHUB_TOKEN }}
       run: |
         cd charms/
-        charm_channel="${{ steps.channel.outputs.channel }}"
         test_channel="${{ steps.channel.outputs.test_channel }}"
         for charm_file in *.charm; do
           charm_file_name="$(basename ${charm_file} .charm)"
@@ -71,10 +70,10 @@ jobs:
               output=$(charmcraft upload-resource "${charm[0]}" "$r" --format=json --filepath zero-size-resource)
               rev=$(echo "$output" | jq .revision)
               extra_args="$extra_args --resource $r:$rev"
-              echo "Published dummy resource ${r} with revision ${rev} for ${charm[0]} to channel $charm_channel"
+              echo "Published dummy resource ${r} with revision ${rev} for ${charm[0]} to channel $test_channel"
           done
 
-          echo "Publishing ${charm[0]} to channel $charm_channel"
+          echo "Publishing ${charm[0]} to channel $test_channel"
           # Build the final charm: we add a build_time file to ensure we produce a
           # charm with a different checksum so we can upload the same tarball
           # multiple times
@@ -83,7 +82,6 @@ jobs:
 
           set +e
           output="$(charmcraft upload \
-            --release "$charm_channel" \
             --release "$test_channel" \
             --name "${charm[0]}" $extra_args "${charm_file}" 2>&1)"
           if [ $? -ne 0 ] ; then
@@ -108,7 +106,7 @@ jobs:
               ;;
           esac
 
-          rev="$(charmcraft status "${charm[0]}" --format=json | jq ".[].mappings[] | select(.base.channel == \"${version}\" and .base.architecture == \"${base[1]}\") | .releases[] | select(.channel == \"$charm_channel\") | .revision")"
+          rev="$(charmcraft status "${charm[0]}" --format=json | jq ".[].mappings[] | select(.base.channel == \"${version}\" and .base.architecture == \"${base[1]}\") | .releases[] | select(.channel == \"$test_channel\") | .revision")"
           echo "Published charm: ${charm[0]}, series: ${series}, architecture: ${base[1]}, revision: $rev"
         done
 
