@@ -26,7 +26,6 @@ jobs:
     needs: [build-charms]
     outputs:
       test_channel: ${{ steps.channel.outputs.test_channel }}
-      branch: ${{ steps.channel.outputs.branch }}
     steps:
     - name: Checkout
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -40,10 +39,13 @@ jobs:
     - name: Select charmhub channel
       id: channel
       run: |
-        branch=gh${{ github.run_id }}
+        # NOTE: we should push the charm to a channel in the format
+        # `<track>/<risk_level>/<branch>` to ensure we always
+        # test the latest artifact available in the store.
+        # However, due to the bug(https://github.com/juju/python-libjuju/issues/908),
+        # we currently use `<track>/<risk_level>` only.
         channel="$(cat .track)"/edge
-        echo "channel=$channel" >> "$GITHUB_OUTPUT"
-        echo "test_channel=$channel/$branch" >> "$GITHUB_OUTPUT"
+        echo "test_channel=$channel" >> "$GITHUB_OUTPUT"
     - name: Fetch charm artifacts
       uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
       with:
@@ -123,7 +125,7 @@ jobs:
     uses: ./.github/workflows/promote-charm.yaml
     needs: [run-integration-test]
     with:
-      from-risk: edge/${{ needs.publish-to-edge.outputs.branch }}
+      from-risk: edge
       to-risk: beta
     secrets:
       CHARMHUB_TOKEN: ${{ secrets.CHARMHUB_TOKEN }}
