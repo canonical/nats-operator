@@ -15,10 +15,6 @@ on:
         description: 'Charmhub channel risk to promote to'
         default: ''
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   promote-charms-and-bundles:
     environment: ${{ contains(inputs.to-risk, 'stable') && 'stable' || null }}

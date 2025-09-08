@@ -19,6 +19,7 @@ async def test_deploy_tls(
     charm_path,
     charm_name,
     charm_channel,
+    charm_series,
 ):
     if constraints:
         await ops_test.model.set_constraints(constraints)
@@ -41,6 +42,7 @@ async def test_deploy_tls(
                 application_name=charm_name,
                 num_units=1,
                 channel=charm_channel,
+                series=charm_series,
             ),
             ops_test.model.deploy(
                 TLS_CA_CHARM_NAME,
