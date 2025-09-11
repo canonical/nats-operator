@@ -2,6 +2,7 @@
 # Copyright 2024 Canonical Ltd.  All rights reserved.
 #
 import asyncio
+import subprocess
 
 import pytest
 from helpers import APP_NAMES, APPLICATION_APP_NAME, TEST_APP_CHARM_PATH
@@ -56,9 +57,18 @@ async def test_upgrade_switch(
     ops_test: OpsTest,
     charm_path,
     charm_name,
+    charm_channel,
 ):
-    # Build and deploy charm from local source folder
-    if not charm_path:
+    # Deploy the new charm from the store if the charm_channel is given, otherwise
+    # build and deploy charm from local source folder.
+    cmd = ["juju", "refresh", "-m", ops_test.model_full_name, charm_name]
+    if charm_channel:
+        cmd += [f"--channel={charm_channel}", f"--switch={charm_name}"]
+    elif not charm_path:
         charm_path = await ops_test.build_charm(".")
-    await ops_test.model.applications[charm_name].refresh(path=charm_path)
-    await ops_test.model.wait_for_idle(apps=[*APP_NAMES, TLS_CA_CHARM_NAME], status="active")
+        cmd += [f"--path={charm_path}"]
+    subprocess.run(cmd, check=True)
+
+    await ops_test.model.wait_for_idle(
+        apps=[*APP_NAMES, TLS_CA_CHARM_NAME], raise_on_error=False, status="active"
+    )
