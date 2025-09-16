@@ -37,10 +37,13 @@ jobs:
         CHARMCRAFT_AUTH: ${{ secrets.CHARMHUB_TOKEN }}
       run: |
         track="${{ steps.track.outputs.track }}"
-        for series in jammy noble ; do
-          ./scripts/promote-charms.sh \
-            --from="$track"/${{ inputs.from-risk }} \
-            --to="$track"/${{ inputs.to-risk }} \
-            --series=${series}
+        for arch in amd64 arm64; do
+          for series in jammy noble ; do
+            ./scripts/promote-charms.sh \
+              --from="${track}"/${{ inputs.from-risk }} \
+              --to="${track}"/${{ inputs.to-risk }} \
+              --series="${series}" \
+              --arch="${arch}"
+          done
         done
 
