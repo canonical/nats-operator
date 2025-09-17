@@ -5,4 +5,5 @@ jsonschema==4.25.0
 pydantic==2.11.7
 packaging==25.0
 rpds-py==0.24.0
+pyOpenSSL==25.3.0
 git+https://github.com/canonical/ops-lib-nrpe.git#egg=ops-lib-nrpe
