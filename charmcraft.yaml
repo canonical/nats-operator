@@ -45,14 +45,14 @@ parts:
   charm:
     charm-requirements: ["requirements.txt"]
     override-build: |
-      cp /usr/bin/rustc-1.78 /usr/bin/rustc
-      cp /usr/bin/cargo-1.78 /usr/bin/cargo
+      cp /usr/bin/rustc-1.83 /usr/bin/rustc
+      cp /usr/bin/cargo-1.83 /usr/bin/cargo
       craftctl default
     build-packages:
     - libffi-dev
     - libssl-dev
-    - rustc-1.78
-    - cargo-1.78
+    - rustc-1.83
+    - cargo-1.83
     - pkg-config
     - git
 
