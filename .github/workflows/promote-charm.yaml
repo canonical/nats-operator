@@ -25,7 +25,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt install  -y zip
-        sudo snap install --classic --channel=latest/stable charmcraft
+        sudo snap install --classic --channel=3.x/stable charmcraft
         sudo snap install --channel=3/stable juju
     - name: Select charmhub track
       id: track
