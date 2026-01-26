@@ -139,10 +139,8 @@ class NatsCharm(CharmBase):
 
     def _on_tls_config_ready(self, event: TlsConfigReady):
         if self.config["tls-key"] and self.config["tls-cert"]:
-            logger.info(
-                "Not reconfiguring NATS with CA as model configuration \
-                        already has certificates"
-            )
+            logger.info("Not reconfiguring NATS with CA as model configuration \
+                        already has certificates")
             return
         self._on_config_changed(event)
 
