@@ -54,6 +54,7 @@ async def test_configured_with_token(ops_test: OpsTest, charm_name):
     assert e.value.args[0] == "nats: 'Authorization Violation'"
 
 
+@pytest.mark.skip_test_when_juju_2_is_in_use
 async def test_relate_with_anbox_charms(
     ops_test: OpsTest,
     constraints,
