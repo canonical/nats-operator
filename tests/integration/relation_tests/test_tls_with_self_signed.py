@@ -12,7 +12,6 @@ TLS_CA_CHARM_NAME = "self-signed-certificates"
 
 @pytest.mark.skip_if_deployed
 @pytest.mark.abort_on_fail
-@pytest.mark.skip_test_when_juju_2_is_in_use
 async def test_deploy_tls(
     ops_test: OpsTest,
     constraints,
@@ -62,7 +61,6 @@ async def test_deploy_tls(
         )
 
 
-@pytest.mark.skip_test_when_juju_2_is_in_use
 async def test_adding_unit_works(ops_test: OpsTest, charm_name):
     async with ops_test.fast_forward():
         nats_app = ops_test.model.applications[charm_name]

@@ -38,7 +38,6 @@ source venv/bin/activate
 tox run -e format              # update your code according to linting rules
 tox run -e lint                # code style
 tox run -e unit                # unit tests
-tox run -e integration-juju2   # integration tests for juju 2.9
 tox run -e integration-juju3   # integration tests for juju 3.2
 tox                            # runs 'lint' and 'unit' environments
 ```

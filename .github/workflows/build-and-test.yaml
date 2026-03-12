@@ -139,7 +139,6 @@ jobs:
       matrix:
         juju-version:
           - "3.6"  # renovate: latest juju 3
-          - "2.9"  # renovate: latest juju 2
         platform: ${{ fromJSON(needs.collect-platforms.outputs.platforms) }}
     runs-on: ["self-hosted", "linux", "${{ matrix.platform.arch == 'amd64' && 'X64' || 'ARM64' }}", "jammy", "large"]
     steps:
