@@ -111,13 +111,13 @@ jobs:
           sudo chown -R "$USER" ${CRAFT_SHARED_CACHE}
       - name: Upload charmcraft logs
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: logs-charmcraft-build-base-${{ matrix.platform.charm_name }}-${{ matrix.platform.arch }}
           path: ~/.local/state/charmcraft/log/
           if-no-files-found: error
       - name: Upload charm package
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ matrix.platform.charm_name }}-charm-${{ matrix.platform.arch }}
           # .empty file required to preserve directory structure
@@ -146,7 +146,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Download packed charm(s)
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         id: downloaded-charm
         if: inputs.scope == 'all'
         with:
@@ -182,7 +182,7 @@ jobs:
           fi
       - name: Upload test logs
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: logs-tests-${{ matrix.platform.charm_name }}-charm-juju-${{ env.JUJU_VERSION }}-${{ matrix.platform.arch }}
           path: logs/
