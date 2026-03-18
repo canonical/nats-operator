@@ -157,7 +157,7 @@ jobs:
           echo "JUJU_CHANNEL=${juju_channel}/stable" >> "$GITHUB_ENV"
           echo "JUJU_VERSION=${{ matrix.juju-version }}" >> "$GITHUB_ENV"
       - name: Setup operator environment
-        uses: charmed-kubernetes/actions-operator@main
+        uses: charmed-kubernetes/actions-operator@ea90ed489690bf3b1c1fcca6ac5f9edab70aecb0 # main
         with:
           provider: lxd
           juju-channel: "${{ env.JUJU_CHANNEL }}"
