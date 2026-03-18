@@ -1,12 +1,16 @@
 #
 # Copyright 2024 Canonical Ltd.  All rights reserved.
 #
+import datetime
 from pathlib import Path
 from subprocess import CalledProcessError
 from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
-from OpenSSL import crypto
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 from ops import ActiveStatus, BlockedStatus, JujuVersion
 from ops.testing import Harness
 
@@ -26,22 +30,34 @@ def harness(request):
 @pytest.fixture
 def tls_config() -> tuple[bytes, bytes]:
     # create a key pair
-    key = crypto.PKey()
-    key.generate_key(crypto.TYPE_RSA, 1024)
+    key = rsa.generate_private_key(public_exponent=65537, key_size=1024)
 
     # create a self-signed cert
-    cert = crypto.X509()
-    cert.get_subject().O = "Canonical"
-    cert.get_subject().OU = "Anbox Cloud"
-    cert.get_subject().CN = "anbox-cloud.io"
-    cert.set_serial_number(1000)
-    cert.gmtime_adj_notBefore(0)
-    cert.gmtime_adj_notAfter(10 * 365 * 24 * 60 * 60)
-    cert.set_issuer(cert.get_subject())
-    cert.set_pubkey(key)
-    cert.sign(key, "sha1")
-    return crypto.dump_privatekey(crypto.FILETYPE_PEM, key), crypto.dump_certificate(
-        crypto.FILETYPE_PEM, cert
+    subject = issuer = x509.Name(
+        [
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Canonical"),
+            x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, "Anbox Cloud"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "anbox-cloud.io"),
+        ]
+    )
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(1000)
+        .not_valid_before(now)
+        .not_valid_after(now + datetime.timedelta(days=10 * 365))
+        .sign(key, hashes.SHA256())
+    )
+    return (
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        ),
+        cert.public_bytes(serialization.Encoding.PEM),
     )
 
 
