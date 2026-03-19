@@ -35,13 +35,15 @@ jobs:
     - name: Promote charms
       env:
         CHARMCRAFT_AUTH: ${{ secrets.CHARMHUB_TOKEN }}
+        FROM_RISK: ${{ inputs.from-risk }}
+        TO_RISK: ${{ inputs.to-risk }}
       run: |
         track="${{ steps.track.outputs.track }}"
         for arch in amd64 arm64; do
           for series in jammy noble ; do
             ./scripts/promote-charms.sh \
-              --from="${track}"/${{ inputs.from-risk }} \
-              --to="${track}"/${{ inputs.to-risk }} \
+              --from="${track}/${FROM_RISK}" \
+              --to="${track}/${TO_RISK}" \
               --series="${series}" \
               --arch="${arch}"
           done

@@ -157,7 +157,7 @@ jobs:
           echo "JUJU_CHANNEL=${juju_channel}/stable" >> "$GITHUB_ENV"
           echo "JUJU_VERSION=${{ matrix.juju-version }}" >> "$GITHUB_ENV"
       - name: Setup operator environment
-        uses: charmed-kubernetes/actions-operator@main
+        uses: charmed-kubernetes/actions-operator@ea90ed489690bf3b1c1fcca6ac5f9edab70aecb0 # main
         with:
           provider: lxd
           juju-channel: "${{ env.JUJU_CHANNEL }}"
@@ -165,6 +165,8 @@ jobs:
         run: |
           sudo apt install -y jq
       - name: Run integration tests
+        env:
+          CHANNEL: ${{ inputs.channel }}
         run: |
           mkdir logs/
           args="--crash-dump-output logs/ "
@@ -172,10 +174,9 @@ jobs:
             args+="--constraints arch=arm64"
           fi
 
-          channel="${{ inputs.channel }}"
-          if [ -n "$channel" ]; then
+          if [ -n "$CHANNEL" ]; then
             echo "${{ toJSON(matrix.platform.versions) }}" | jq -r '.[]' | while read -r version; do
-              ./scripts/run-integration-tests --charm-channel="$channel" --base-version="$version" ${args}
+              ./scripts/run-integration-tests --charm-channel="$CHANNEL" --base-version="$version" ${args}
             done
           else
             ls *.charm | xargs -I {} ./scripts/run-integration-tests --charm=./{} ${args}
