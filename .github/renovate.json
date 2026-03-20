@@ -1,7 +1,7 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": [
-        "config:base",
+        "config:recommended",
         ":disableDependencyDashboard",
         ":automergeDigest",
         ":automergePatch",
@@ -11,9 +11,12 @@
         ":semanticCommitScope(deps)",
         "docker:pinDigests",
         "helpers:pinGitHubActionDigestsToSemver",
-        "regexManagers:dockerfileVersions",
+        "customManagers:dockerfileVersions",
         "group:allNonMajor"
     ],
+    "minimumReleaseAge": "7 days",
+    "minimumReleaseAgeBehaviour": "timestamp-optional",
+    "prCreation": "not-pending",
     "automergeType": "branch",
     "packageRules": [
         {
@@ -28,7 +31,7 @@
         },
         {
             "groupName": "testing deps",
-            "matchFiles": [
+            "matchFileNames": [
                 "tox.ini"
             ],
             "matchUpdateTypes": [
@@ -45,8 +48,8 @@
         },
         {
             "groupName": "renovate packages",
-            "matchSourceUrlPrefixes": [
-                "https://github.com/renovatebot/"
+            "matchSourceUrls": [
+                "https://github.com/renovatebot/{/,}**"
             ],
             "matchUpdateTypes": [
                 "major",
@@ -65,9 +68,10 @@
              "allowedVersions": "^0.24.0"
         }
     ],
-    "regexManagers": [
+    "customManagers": [
         {
-            "fileMatch": [
+            "customType": "regex",
+            "managerFilePatterns": [
                 "tox.ini"
             ],
             "matchStrings": [
