@@ -14,7 +14,7 @@
         "customManagers:dockerfileVersions",
         "group:allNonMajor"
     ],
-    "minimumReleaseAge": "7 days",
+    "minimumReleaseAge": "90 days",
     "minimumReleaseAgeBehaviour": "timestamp-optional",
     "prCreation": "not-pending",
     "automergeType": "branch",
