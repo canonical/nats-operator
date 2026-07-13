@@ -87,7 +87,7 @@ jobs:
           pipx install charmcraftcache==0.6.3
       - name: Cache Deps
         id: cache-charm-deps
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ env.CRAFT_SHARED_CACHE }}/**
           key: charm-deps-${{ matrix.platform.arch }}-${{ hashFiles('**/requirements.txt') }}
@@ -111,13 +111,13 @@ jobs:
           sudo chown -R "$USER" ${CRAFT_SHARED_CACHE}
       - name: Upload charmcraft logs
         if: failure()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-charmcraft-build-base-${{ matrix.platform.charm_name }}-${{ matrix.platform.arch }}
           path: ~/.local/state/charmcraft/log/
           if-no-files-found: error
       - name: Upload charm package
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ matrix.platform.charm_name }}-charm-${{ matrix.platform.arch }}
           # .empty file required to preserve directory structure
@@ -183,7 +183,7 @@ jobs:
           fi
       - name: Upload test logs
         if: failure()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logs-tests-${{ matrix.platform.charm_name }}-charm-juju-${{ env.JUJU_VERSION }}-${{ matrix.platform.arch }}
           path: logs/
